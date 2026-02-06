@@ -87,11 +87,15 @@ class AuthService {
   }): Promise<CadastrarEmpresaResponse> {
     // Obter device_id persistente
     const device_id = await this.getDeviceId();
-    
-    return apiService.post<CadastrarEmpresaResponse>(ENDPOINTS.CADASTRAR_EMPRESA, {
-      ...data,
-      device_id
-    });
+    try {
+      const response = await apiService.post<CadastrarEmpresaResponse>(ENDPOINTS.CADASTRAR_EMPRESA, {
+        ...data,
+        device_id
+      });
+      return response.data;
+    } catch (error: any) {
+      throw new Error(error.response?.data?.error || 'Erro ao cadastrar empresa');
+    }
   }
   
   // Cadastrar nova empresa (deprecated - manter para compatibilidade)
@@ -103,7 +107,12 @@ class AuthService {
     telefone?: string;
     endereco?: string;
   }): Promise<CadastrarEmpresaResponse> {
-    return apiService.post<CadastrarEmpresaResponse>(ENDPOINTS.CADASTRAR_EMPRESA, data);
+    try {
+      const response = await apiService.post<CadastrarEmpresaResponse>(ENDPOINTS.CADASTRAR_EMPRESA, data);
+      return response.data;
+    } catch (error: any) {
+      throw new Error(error.response?.data?.error || 'Erro ao cadastrar empresa');
+    }
   }
   
   // Login
