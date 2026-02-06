@@ -46,11 +46,11 @@ class Empresa extends Model<EmpresaAttributes, EmpresaCreationAttributes> implem
   // Método para verificar se está em trial e ativo
   public isTrialAtivo(): boolean {
     if (!this.data_inicio_trial) return false;
-    
     const agora = new Date();
-    const diasPassados = Math.floor((agora.getTime() - this.data_inicio_trial.getTime()) / (1000 * 60 * 60 * 24));
-    
-    return diasPassados <= 7;
+    const inicio = new Date(this.data_inicio_trial);
+    const diffMs = agora.getTime() - inicio.getTime();
+    const diasPassados = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    return diasPassados < 7;
   }
   
   // Método para verificar se a assinatura está ativa
