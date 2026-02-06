@@ -29,8 +29,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Helper function to check if subscription is expired
   function verificarAssinaturaExpirada(empresaData: Empresa | null): boolean {
     if (!empresaData) return false;
-    const diasRestantes =
-      empresaData.diasRestantes ?? (empresaData as any).dias_restantes ?? 0;
+    // Se está em trial, nunca expira
+    if (empresaData.emTrial) return false;
+    const diasRestantes = empresaData.diasRestantes ?? 0;
     return diasRestantes <= 0;
   }
   
