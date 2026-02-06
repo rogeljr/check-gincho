@@ -165,8 +165,6 @@ export const cadastrarEmpresa = async (req: Request, res: Response) => {
       email: emailNormalizado,
       senha: senhaHash,
       cpf_responsavel: cpfLimpo,
-      device_id: device_id,
-      quantidade_licencas: licencas, // Quantidade selecionada no cadastro
       ativo: false // Será ativado após validação por email
     });
     
@@ -580,43 +578,14 @@ export const login = async (req: Request, res: Response) => {
     
     // Gerar token
     const token = generateToken(empresa.id, empresa.codigo);
-    
-    // 🔐 MULTI-SESSÃO: Adicionar novo token ao array active_tokens (respeita quantidade_licencas)
-    // Retrocompatibilidade: empresas antigas não têm esses campos
-    if (!empresa.active_tokens) {
-      empresa.active_tokens = [];
-    }
-    
-    // Usar default 1 se quantidade_licencas não existe ou é null
-    const quantidadeLicencas = empresa.quantidade_licencas || 1;
-    
-    // Adicionar novo token
-    empresa.active_tokens.push(token);
 
-    // Se ultrapassar o limite de licenças, remove o token mais antigo
-    if (empresa.active_tokens.length > quantidadeLicencas) {
-      const tokensExcedentes = empresa.active_tokens.length - quantidadeLicencas;
-      empresa.active_tokens = empresa.active_tokens.slice(tokensExcedentes);
-      console.log('📊 [LOGIN] Limite de dispositivos atingido, removendo tokens antigos');
-    }
-
+    // Sessão única: Salvar token e device_id
+    empresa.active_token = token;
     empresa.device_id = device_id;
     empresa.ultimo_login = new Date();
     await empresa.save();
-    console.log(`✅ [LOGIN] Novo token adicionado (${empresa.active_tokens.length}/${quantidadeLicencas} dispositivos ativos)`);
-    
-    // Calcular status ajustado (considerar expiração)
-    const diasRestantes = empresa.diasRestantes();
-    const assinaturaAtiva = empresa.isAssinaturaAtiva();
-    const ativoAjustado = empresa.ativo && assinaturaAtiva;
-    
-    console.log('✅ [LOGIN] Login bem-sucedido:', { 
-      empresaId: empresa.id, 
-      diasRestantes, 
-      assinaturaAtiva,
-      ativoAjustado
-    });
-    
+    console.log('🔐 [LOGIN] Sessão única ativada - tokens anteriores invalidados');
+
     // Log de login
     await createLog(
       { empresaId: empresa.id } as Request,
@@ -626,7 +595,7 @@ export const login = async (req: Request, res: Response) => {
         entidade_id: empresa.id
       }
     );
-    
+
     return res.json({
       token,
       empresa: {
@@ -634,9 +603,7 @@ export const login = async (req: Request, res: Response) => {
         nome: empresa.nome,
         codigo: empresa.codigo,
         email: empresa.email,
-        ativo: ativoAjustado, // Ajustado para considerar expiração
-        diasRestantes: diasRestantes,
-        assinaturaAtiva: assinaturaAtiva
+        ativo: empresa.ativo
       }
     });
   } catch (error) {
