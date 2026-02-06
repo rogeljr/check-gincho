@@ -141,31 +141,7 @@ export const cadastrarEmpresa = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Email deve terminar com .com, .com.br, .net, .org ou .br' });
     }
 
-    if (senha.length < 6) {
-      console.log('❌ [CADASTRO] Senha muito curta');
-      return res.status(400).json({ error: 'A senha deve ter no mínimo 6 caracteres' });
-    }
-
-    // Validar quantidade de licenças (padrão 1, máximo 10)
-    const licencas = quantidade_licencas && quantidade_licencas >= 1 && quantidade_licencas <= 10 
-      ? quantidade_licencas 
-      : 1;
-    console.log(`📊 [CADASTRO] Quantidade de licenças selecionadas: ${licencas}`);
-
-    // Validar CPF
-    const cpfLimpo = cpf_responsavel.replace(/\D/g, '');
-    if (cpfLimpo.length !== 11) {
-      console.log('❌ [CADASTRO] CPF inválido:', cpf_responsavel);
-      return res.status(400).json({ error: 'CPF inválido' });
-    }
-
-    if (!validarCNPJ(cnpj)) {
-      console.log('❌ [CADASTRO] CNPJ inválido:', cnpj);
-      return res.status(400).json({ error: 'CNPJ inválido' });
-    }
-
-    const cnpjFormatado = formatarCNPJ(cnpj);
-    console.log('✅ [CADASTRO] CNPJ formatado:', cnpjFormatado);
+    // ...existing code...
 
     if (senha.length < 6) {
       console.log('❌ [CADASTRO] Senha muito curta');
