@@ -55,17 +55,11 @@ class Empresa extends Model<EmpresaAttributes, EmpresaCreationAttributes> implem
   
   // Método para verificar se a assinatura está ativa
   public isAssinaturaAtiva(): boolean {
-    const agora = new Date();
-    // Se não tem data_expiracao, considera trial
     if (!this.data_expiracao) {
       return this.isTrialAtivo();
     }
-    // Se tem data_expiracao e está expirada, não considera trial
-    if (agora >= this.data_expiracao) {
-      return false;
-    }
-    // Se assinatura está ativa, retorna true
-    return true;
+    const agora = new Date();
+    return agora < this.data_expiracao;
   }
   
   // Dias restantes (trial ou assinatura)
