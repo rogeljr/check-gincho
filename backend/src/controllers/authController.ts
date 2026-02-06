@@ -99,6 +99,13 @@ export const cadastrarEmpresa = async (req: Request, res: Response) => {
     // Código da empresa sempre minúsculo
     if (codigo) codigo = codigo.toLowerCase();
 
+    // Inicialização das variáveis
+    const cpfLimpo = cpf_responsavel ? cpf_responsavel.replace(/\D/g, '') : '';
+    const cnpjLimpo = cnpj ? cnpj.replace(/\D/g, '') : '';
+    const cnpjFormatado = cnpjLimpo ? formatarCNPJ(cnpjLimpo) : '';
+    const emailNormalizado = email ? email.trim().toLowerCase() : '';
+    const licencas = quantidade_licencas && quantidade_licencas >= 1 && quantidade_licencas <= 10 ? quantidade_licencas : 1;
+
     // Validação de CPF/CNPJ
     // ...existing code...
     
