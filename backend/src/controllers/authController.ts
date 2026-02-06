@@ -158,6 +158,8 @@ export const cadastrarEmpresa = async (req: Request, res: Response) => {
     console.log('🔐 [CADASTRO] Senha hashada');
     
     // Criar empresa (já com senha, mas NÃO VALIDADA)
+    const agora = new Date();
+    const expiracao = new Date(agora.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 dias
     const empresa = await Empresa.create({
       nome,
       cnpj: cnpjFormatado,
@@ -166,6 +168,8 @@ export const cadastrarEmpresa = async (req: Request, res: Response) => {
       senha: senhaHash,
       cpf_responsavel: cpfLimpo,
       quantidade_licencas: 1,
+      data_inicio_trial: agora,
+      data_expiracao: expiracao,
       ativo: false // Será ativado após validação por email
     });
     
@@ -530,8 +534,8 @@ export const definirSenha = async (req: Request, res: Response) => {
 export const login = async (req: Request, res: Response) => {
   try {
     let { codigo, senha, device_id } = req.body;
-    // Código da empresa sempre minúsculo
-    if (codigo) codigo = codigo.toLowerCase();
+    // Código da empresa sempre minúsculo e sem espaços
+    if (codigo) codigo = codigo.trim().toLowerCase();
     
     console.log('🔐 [LOGIN] Tentativa de login:', { codigo, device_id });
     
@@ -580,12 +584,22 @@ export const login = async (req: Request, res: Response) => {
     // Gerar token
     const token = generateToken(empresa.id, empresa.codigo);
 
-    // Sessão única: Salvar token e device_id
-    empresa.active_token = token;
+    // MULTI-LICENÇA: Adicionar novo token ao array active_tokens (respeita quantidade_licencas)
+    if (!empresa.active_tokens) {
+      empresa.active_tokens = [];
+    }
+    const quantidadeLicencas = empresa.quantidade_licencas || 1;
+    empresa.active_tokens.push(token);
+    // Se ultrapassar o limite, remove tokens antigos
+    if (empresa.active_tokens.length > quantidadeLicencas) {
+      const tokensExcedentes = empresa.active_tokens.length - quantidadeLicencas;
+      empresa.active_tokens = empresa.active_tokens.slice(tokensExcedentes);
+      console.log('📊 [LOGIN] Limite de dispositivos atingido, removendo tokens antigos');
+    }
     empresa.device_id = device_id;
     empresa.ultimo_login = new Date();
     await empresa.save();
-    console.log('🔐 [LOGIN] Sessão única ativada - tokens anteriores invalidados');
+    console.log(`✅ [LOGIN] Novo token adicionado (${empresa.active_tokens.length}/${quantidadeLicencas} dispositivos ativos)`);
 
     // Log de login
     await createLog(
