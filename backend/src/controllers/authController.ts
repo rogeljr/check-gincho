@@ -119,7 +119,22 @@ export const cadastrarEmpresa = async (req: Request, res: Response) => {
     console.log('📝 [CADASTRO] Recebido request de cadastro:', { nome: req.body.nome, email: req.body.email, cnpj: req.body.cnpj });
     
 
-    const { nome, cnpj, codigo, email, senha, cpf_responsavel, device_id, quantidade_licencas } = req.body;
+    let { nome, cnpj, codigo, email, senha, cpf_responsavel, device_id, quantidade_licencas } = req.body;
+
+    // Código da empresa sempre minúsculo
+    if (codigo) codigo = codigo.toLowerCase();
+
+    // Validação de CPF
+    const cpfLimpo = cpf_responsavel.replace(/\D/g, '');
+    if (cpfLimpo.length !== 11 || /^0+$/.test(cpfLimpo)) {
+      return res.status(400).json({ error: 'CPF inválido. Preencha corretamente.' });
+    }
+
+    // Validação de CNPJ
+    const cnpjLimpo = cnpj.replace(/\D/g, '');
+    if (cnpjLimpo.length !== 14 || /^0+$/.test(cnpjLimpo) || !validarCNPJ(cnpjLimpo)) {
+      return res.status(400).json({ error: 'CNPJ inválido. Preencha corretamente.' });
+    }
     if (!nome || !cnpj || !email || !senha || !cpf_responsavel || !device_id) {
       console.log('❌ [CADASTRO] Dados obrigatórios faltando');
       return res.status(400).json({ 
@@ -587,7 +602,9 @@ export const definirSenha = async (req: Request, res: Response) => {
 // Login
 export const login = async (req: Request, res: Response) => {
   try {
-    const { codigo, senha, device_id } = req.body;
+    let { codigo, senha, device_id } = req.body;
+    // Código da empresa sempre minúsculo
+    if (codigo) codigo = codigo.toLowerCase();
     
     console.log('🔐 [LOGIN] Tentativa de login:', { codigo, device_id });
     
