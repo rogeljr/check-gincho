@@ -613,20 +613,17 @@ export const login = async (req: Request, res: Response) => {
     // Usar default 1 se quantidade_licencas não existe ou é null
     const quantidadeLicencas = empresa.quantidade_licencas || 1;
     
+    // Bloquear login se já atingiu o limite de licenças
+    if (empresa.active_tokens.length >= quantidadeLicencas) {
+      console.log('🚫 [LOGIN] Limite de dispositivos atingido. Login negado.');
+      return res.status(403).json({ error: `Limite de dispositivos atingido (${quantidadeLicencas}). Faça logout em outro aparelho para liberar acesso.` });
+    }
+
     // Adicionar novo token
     empresa.active_tokens.push(token);
-    
-    // Se ultrapassar o limite de licenças, remover os tokens mais antigos
-    if (empresa.active_tokens.length > quantidadeLicencas) {
-      const tokensExcedentes = empresa.active_tokens.length - quantidadeLicencas;
-      empresa.active_tokens = empresa.active_tokens.slice(tokensExcedentes);
-      console.log('📊 [LOGIN] Limite de dispositivos atingido, removendo tokens antigos');
-    }
-    
     empresa.device_id = device_id;
     empresa.ultimo_login = new Date();
     await empresa.save();
-    
     console.log(`✅ [LOGIN] Novo token adicionado (${empresa.active_tokens.length}/${quantidadeLicencas} dispositivos ativos)`);
     
     // Calcular status ajustado (considerar expiração)
