@@ -64,12 +64,52 @@ export const cadastrarEmpresa = async (req: Request, res: Response) => {
     
     const { nome, cnpj, codigo, email, senha, cpf_responsavel, device_id, quantidade_licencas } = req.body;
     
-    if (!nome || !cnpj || !email || !senha || !cpf_responsavel || !device_id) {
-      console.log('❌ [CADASTRO] Dados obrigatórios faltando');
-      return res.status(400).json({ 
-        error: 'Nome, CNPJ, email, senha, CPF do responsável e identificação do dispositivo são obrigatórios' 
-      });
-    }
+      if (!nome || !cnpj || !email || !senha || !cpf_responsavel || !device_id) {
+        console.log('❌ [CADASTRO] Dados obrigatórios faltando');
+        return res.status(400).json({ 
+          error: 'Nome, CNPJ, email, senha, CPF do responsável e identificação do dispositivo são obrigatórios' 
+        });
+      }
+
+      // Validação de email: formato e TLD permitido
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const allowedTLDs = ['.com', '.com.br', '.net', '.org', '.br'];
+      const emailNormalizado = email.trim().toLowerCase();
+      if (!emailRegex.test(emailNormalizado)) {
+        console.log('❌ [CADASTRO] Email inválido (regex):', emailNormalizado);
+        return res.status(400).json({ error: 'Email inválido' });
+      }
+      const tld = emailNormalizado.substring(emailNormalizado.lastIndexOf('.'));
+      if (!allowedTLDs.some(allowed => emailNormalizado.endsWith(allowed))) {
+        console.log('❌ [CADASTRO] Email com TLD não permitido:', emailNormalizado);
+        return res.status(400).json({ error: 'Email deve terminar com .com, .com.br, .net, .org ou .br' });
+      }
+
+      if (senha.length < 6) {
+        console.log('❌ [CADASTRO] Senha muito curta');
+        return res.status(400).json({ error: 'A senha deve ter no mínimo 6 caracteres' });
+      }
+
+      // Validar quantidade de licenças (padrão 1, máximo 10)
+      const licencas = quantidade_licencas && quantidade_licencas >= 1 && quantidade_licencas <= 10 
+        ? quantidade_licencas 
+        : 1;
+      console.log(`📊 [CADASTRO] Quantidade de licenças selecionadas: ${licencas}`);
+
+      // Validar CPF
+      const cpfLimpo = cpf_responsavel.replace(/\D/g, '');
+      if (cpfLimpo.length !== 11) {
+        console.log('❌ [CADASTRO] CPF inválido:', cpf_responsavel);
+        return res.status(400).json({ error: 'CPF inválido' });
+      }
+    
+      if (!validarCNPJ(cnpj)) {
+        console.log('❌ [CADASTRO] CNPJ inválido:', cnpj);
+        return res.status(400).json({ error: 'CNPJ inválido' });
+      }
+    
+      const cnpjFormatado = formatarCNPJ(cnpj);
+      console.log('✅ [CADASTRO] CNPJ formatado:', cnpjFormatado);
 
     if (senha.length < 6) {
       console.log('❌ [CADASTRO] Senha muito curta');
@@ -120,8 +160,8 @@ export const cadastrarEmpresa = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'CNPJ já cadastrado' });
     }
     
-    // Verificar se email já existe
-    const emailExistente = await Empresa.findOne({ where: { email } });
+    // Verificar se email já existe (normalizado)
+    const emailExistente = await Empresa.findOne({ where: { email: emailNormalizado } });
     if (emailExistente) {
       console.log('❌ [CADASTRO] Email já cadastrado');
       return res.status(400).json({ error: 'Email já cadastrado' });
@@ -150,7 +190,7 @@ export const cadastrarEmpresa = async (req: Request, res: Response) => {
       nome,
       cnpj: cnpjFormatado,
       codigo: codigoFinal,
-      email,
+      email: emailNormalizado,
       senha: senhaHash,
       cpf_responsavel: cpfLimpo,
       device_id: device_id,
