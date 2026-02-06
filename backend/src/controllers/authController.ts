@@ -210,36 +210,34 @@ export const cadastrarEmpresa = async (req: Request, res: Response) => {
       console.log('📝 [CADASTRO] Trial registrado para CPF e dispositivo');
     }
     
-    // Gerar token de validação (válido por 24h)
-    const tokenValidacao = jwt.sign(
-      { empresaId: empresa.id, action: 'validate_account' },
-      process.env.JWT_SECRET!,
-      { expiresIn: '24h' }
-    );
-    
-    console.log('🎫 [CADASTRO] Token de validação gerado');
-    
-    // Link de validação - usar URL HTTP que funciona em navegadores e emails
-    const backendUrl = process.env.BACKEND_URL || `http://192.168.1.5:8080`;
-    const validacaoUrl = `${backendUrl}/api/auth/validar-conta?token=${tokenValidacao}`;
-    
-    console.log('📧 [CADASTRO] Tentando enviar email para:', email);
-    
-    // Enviar email de confirmação
-    const emailEnviado = await sendEmail({
-      to: email,
-      subject: 'Check Guincho - Confirme sua conta',
-      html: emailValidacaoConta(nome, codigoFinal, validacaoUrl)
-    });
-    
-    if (emailEnviado) {
-      console.log('✅ [CADASTRO] Email enviado com sucesso');
-    } else {
-      console.log('⚠️ [CADASTRO] Falha ao enviar email, mas conta foi criada');
-    }
-    
+    // --- COMENTADO: Envio de email de validação ---
+    // // Gerar token de validação (válido por 24h)
+    // const tokenValidacao = jwt.sign(
+    //   { empresaId: empresa.id, action: 'validate_account' },
+    //   process.env.JWT_SECRET!,
+    //   { expiresIn: '24h' }
+    // );
+    // console.log('🎫 [CADASTRO] Token de validação gerado');
+    // const backendUrl = process.env.BACKEND_URL || `http://192.168.1.5:8080`;
+    // const validacaoUrl = `${backendUrl}/api/auth/validar-conta?token=${tokenValidacao}`;
+    // console.log('📧 [CADASTRO] Tentando enviar email para:', email);
+    // const emailEnviado = await sendEmail({
+    //   to: email,
+    //   subject: 'Check Guincho - Confirme sua conta',
+    //   html: emailValidacaoConta(nome, codigoFinal, validacaoUrl)
+    // });
+    // if (emailEnviado) {
+    //   console.log('✅ [CADASTRO] Email enviado com sucesso');
+    // } else {
+    //   console.log('⚠️ [CADASTRO] Falha ao enviar email, mas conta foi criada');
+    // }
+
+    // Ativar empresa automaticamente
+    await empresa.update({ ativo: true });
+    console.log('✅ [CADASTRO] Empresa ativada automaticamente (teste)');
+
     return res.status(201).json({
-      message: 'Empresa cadastrada com sucesso! Verifique seu email para validar a conta.',
+      message: 'Empresa cadastrada e ativada com sucesso! Login liberado.',
       codigo: codigoFinal,
       email,
       tem_direito_trial: temDireitoTrial
