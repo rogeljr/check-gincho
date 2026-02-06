@@ -1,3 +1,28 @@
+// Logout
+export const logout = async (req: Request, res: Response) => {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    if (!token) {
+      return res.status(400).json({ error: 'Token não fornecido' });
+    }
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!);
+    const empresa = await Empresa.findByPk(decoded.empresaId);
+    if (!empresa) {
+      return res.status(404).json({ error: 'Empresa não encontrada' });
+    }
+    if (!empresa.active_tokens || !empresa.active_tokens.includes(token)) {
+      return res.status(400).json({ error: 'Token não está ativo' });
+    }
+    // Remover token do array
+    empresa.active_tokens = empresa.active_tokens.filter(t => t !== token);
+    await empresa.save();
+    console.log('✅ [LOGOUT] Token removido:', token);
+    return res.json({ message: 'Logout realizado com sucesso' });
+  } catch (error) {
+    console.error('❌ [LOGOUT] Erro ao fazer logout:', error);
+    return res.status(500).json({ error: 'Erro ao fazer logout' });
+  }
+};
 import { Request, Response } from 'express';
 import Empresa from '../models/Empresa';
 import TrialUsage from '../models/TrialUsage';

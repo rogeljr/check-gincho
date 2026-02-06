@@ -14,6 +14,8 @@ router.get('/definir-senha', authController.redirecionarDefinirSenha); // Redire
 router.post('/login', authController.login);
 
 // Rotas protegidas (com autenticação)
+
+router.post('/logout', authMiddleware, authController.logout);
 router.get('/empresa', authMiddleware, authController.getEmpresa);
 router.put('/empresa', authMiddleware, authController.atualizarEmpresa);
 
