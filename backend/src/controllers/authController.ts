@@ -229,38 +229,41 @@ export const validarConta = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Token não fornecido' });
     }
 
-    // --- COMENTADO: Validação de token ---
-    // // Verificar token
-    // const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
-    // if (decoded.action !== 'validate_account') {
-    //   return res.status(400).json({ error: 'Token inválido' });
-    // }
-    // const empresa = await Empresa.findByPk(decoded.empresaId);
-    // Permitir validação direta (para testes)
-    return res.status(200).json({ message: 'Conta validada (teste)', validada: true });
-    
+    // --- Validação de token ---
+    // Verificar token
+    let decoded: any;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET!);
+    } catch (err) {
+      return res.status(400).json({ error: 'Token inválido ou expirado' });
+    }
+    if (!decoded || decoded.action !== 'validate_account') {
+      return res.status(400).json({ error: 'Token inválido' });
+    }
+    const empresa = await Empresa.findByPk(decoded.empresaId);
+
     if (!empresa) {
       return res.status(404).json({ error: 'Empresa não encontrada' });
     }
-    
+
     if (empresa.ativo) {
       return res.status(400).json({ error: 'Conta já foi validada' });
     }
-    
+
     // Ativar empresa e iniciar trial de 7 dias
     empresa.ativo = true;
     empresa.data_inicio_trial = new Date(); // ✅ Iniciar trial agora
     await empresa.save();
-    
+
     console.log('✅ [VALIDAÇÃO] Conta ativada e trial iniciado:', { empresaId: empresa.id, codigo: empresa.codigo });
-    
+
     // Enviar email de boas-vindas
     await sendEmail({
       to: empresa.email,
       subject: 'Conta ativada com sucesso!',
       html: emailContaValidada(empresa.nome)
     });
-    
+
     return res.json({
       message: 'Conta validada com sucesso! Você já pode fazer login.',
       codigo: empresa.codigo
