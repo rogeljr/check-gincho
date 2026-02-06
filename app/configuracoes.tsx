@@ -198,7 +198,7 @@ export default function ConfiguracoesScreen() {
       let mensagemErro = 'Erro ao salvar alterações';
       
       if (error.code === 'ECONNABORTED' || error.message === 'Network Error') {
-        mensagemErro = 'Erro de conexão. Verifique:\n\n1. Se o backend está rodando\n2. Se está conectado à mesma rede Wi-Fi\n3. Se o IP está correto (192.168.1.5:8080)';
+        mensagemErro = 'Erro de conexão. Verifique:\n\n1. Se está conectado à internet\n2. Se o servidor está disponível';
       } else if (error.response?.data?.error) {
         mensagemErro = error.response.data.error;
       } else if (error.message) {
