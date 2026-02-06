@@ -1,12 +1,9 @@
 // Configuração da API
 export const API_CONFIG = {
-  // Para celular físico ou emulador Android, use o IP da sua máquina
-  // Para descobrir seu IP: ipconfig (Windows) ou ifconfig (Mac/Linux)
-  // Emulador Android: http://10.0.2.2:8080
-  // iOS Simulator: http://localhost:8080
-  // Celular físico: http://SEU_IP_LOCAL:8080 (ex: http://192.168.1.5:8080)
+  // Produção: Railway
+  // Local: http://192.168.1.5:8080/api
   
-  BASE_URL: 'http://192.168.1.5:8080/api', // ✅ IP Local
+  BASE_URL: 'https://check-gincho-production.up.railway.app/api', // ✅ Railway Cloud
   TIMEOUT: 60000, // Aumentado para 60 segundos
 };
 
