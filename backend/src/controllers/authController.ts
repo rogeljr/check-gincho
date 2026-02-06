@@ -1,28 +1,4 @@
-// Logout
-export const logout = async (req: Request, res: Response) => {
-  try {
-    const token = req.headers.authorization?.replace('Bearer ', '');
-    if (!token) {
-      return res.status(400).json({ error: 'Token não fornecido' });
-    }
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!);
-    const empresa = await Empresa.findByPk(decoded.empresaId);
-    if (!empresa) {
-      return res.status(404).json({ error: 'Empresa não encontrada' });
-    }
-    if (!empresa.active_tokens || !empresa.active_tokens.includes(token)) {
-      return res.status(400).json({ error: 'Token não está ativo' });
-    }
-    // Remover token do array
-    empresa.active_tokens = empresa.active_tokens.filter(t => t !== token);
-    await empresa.save();
-    console.log('✅ [LOGOUT] Token removido:', token);
-    return res.json({ message: 'Logout realizado com sucesso' });
-  } catch (error) {
-    console.error('❌ [LOGOUT] Erro ao fazer logout:', error);
-    return res.status(500).json({ error: 'Erro ao fazer logout' });
-  }
-};
+// ...imports...
 
 import { Request, Response } from 'express';
 import Empresa from '../models/Empresa';
@@ -33,7 +9,6 @@ import { createLog } from '../middleware/logger';
 import jwt, { JwtPayload } from 'jsonwebtoken';
 import { Op } from 'sequelize';
 
-// Logout
 export const logout = async (req: Request, res: Response) => {
   try {
     const token = req.headers.authorization?.replace('Bearer ', '');
@@ -124,13 +99,11 @@ export const cadastrarEmpresa = async (req: Request, res: Response) => {
     // Código da empresa sempre minúsculo
     if (codigo) codigo = codigo.toLowerCase();
 
-    // Validação de CPF
+    // Validação de CPF/CNPJ
     const cpfLimpo = cpf_responsavel.replace(/\D/g, '');
     if (cpfLimpo.length !== 11 || /^0+$/.test(cpfLimpo)) {
       return res.status(400).json({ error: 'CPF inválido. Preencha corretamente.' });
     }
-
-    // Validação de CNPJ
     const cnpjLimpo = cnpj.replace(/\D/g, '');
     if (cnpjLimpo.length !== 14 || /^0+$/.test(cnpjLimpo) || !validarCNPJ(cnpjLimpo)) {
       return res.status(400).json({ error: 'CNPJ inválido. Preencha corretamente.' });
