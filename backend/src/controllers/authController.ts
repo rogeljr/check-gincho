@@ -109,20 +109,20 @@ export const cadastrarEmpresa = async (req: Request, res: Response) => {
     // Validação de CPF/CNPJ
     // ...existing code...
     
-    // 🔐 VERIFICAÇÃO ANTI-ABUSO: Verificar se CPF ou device_id já usaram trial
-    const trialJaUsado = await TrialUsage.findOne({
-      where: {
-        [Op.or]: [
-          { cpf: cpfLimpo },
-          { device_id: device_id }
-        ]
-      }
-    });
-    
+    // 🔐 VERIFICAÇÃO ANTI-ABUSO: Verificar se CPF já usou trial e se o prazo expirou
+    const trialJaUsado = await TrialUsage.findOne({ where: { cpf: cpfLimpo } });
     let temDireitoTrial = true;
     if (trialJaUsado) {
-      console.log('⚠️ [CADASTRO] CPF ou dispositivo já utilizou trial:', { cpf: cpfLimpo, device_id });
-      temDireitoTrial = false;
+      const dataUso = trialJaUsado.data_uso || trialJaUsado.createdAt;
+      const agora = new Date();
+      const diasPassados = Math.floor((agora.getTime() - new Date(dataUso).getTime()) / (1000 * 60 * 60 * 24));
+      if (diasPassados > 7) {
+        temDireitoTrial = false;
+        console.log('⚠️ [CADASTRO] CPF já usou trial e prazo expirou:', { cpf: cpfLimpo, diasPassados });
+      } else {
+        temDireitoTrial = true;
+        console.log('⚠️ [CADASTRO] CPF já usou trial, mas ainda está dentro do prazo:', { cpf: cpfLimpo, diasPassados });
+      }
     }
     
     // Verificar se CNPJ já existe
