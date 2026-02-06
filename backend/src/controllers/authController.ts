@@ -165,6 +165,7 @@ export const cadastrarEmpresa = async (req: Request, res: Response) => {
       email: emailNormalizado,
       senha: senhaHash,
       cpf_responsavel: cpfLimpo,
+      quantidade_licencas: 1,
       ativo: false // Será ativado após validação por email
     });
     
