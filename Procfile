@@ -1,1 +1,1 @@
-web: cd backend && node database/run-migration.js && npm start
+web: cd backend && node database/create-tables.js && npm start
