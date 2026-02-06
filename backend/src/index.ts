@@ -9,6 +9,16 @@ import routes from './routes';
 // Configurar variáveis de ambiente
 dotenv.config();
 
+// Log todas as variáveis de ambiente (para debug)
+console.log('\n📋 Variáveis de ambiente disponíveis:');
+console.log('   DATABASE_URL:', process.env.DATABASE_URL ? '✅ Definida' : '❌ Indefinida');
+console.log('   PGHOST:', process.env.PGHOST ? `✅ ${process.env.PGHOST}` : '❌ Indefinida');
+console.log('   PGPORT:', process.env.PGPORT ? `✅ ${process.env.PGPORT}` : '❌ Indefinida');
+console.log('   PGUSER:', process.env.PGUSER ? `✅ ${process.env.PGUSER}` : '❌ Indefinida');
+console.log('   PGPASSWORD:', process.env.PGPASSWORD ? '✅ Definida' : '❌ Indefinida');
+console.log('   PGDATABASE:', process.env.PGDATABASE ? `✅ ${process.env.PGDATABASE}` : '❌ Indefinida');
+console.log('   NODE_ENV:', process.env.NODE_ENV || 'development\n');
+
 const app: Express = express();
 const PORT = process.env.PORT || 8080;
 
