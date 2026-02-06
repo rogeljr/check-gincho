@@ -3,40 +3,32 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-// Use DATABASE_URL se disponível (Railway, produção)
-// Senão, construa usando variáveis individuais
-let sequelize: Sequelize;
+// Railway fornece DATABASE_URL automaticamente quando PostgreSQL é adicionado
+const databaseUrl = process.env.DATABASE_URL?.trim();
 
-if (process.env.DATABASE_URL) {
-  console.log('✅ Usando DATABASE_URL para conexão');
-  sequelize = new Sequelize(process.env.DATABASE_URL, {
-    dialect: 'postgres',
-    logging: process.env.NODE_ENV === 'development' ? console.log : false,
-    pool: {
-      max: 5,
-      min: 0,
-      acquire: 30000,
-      idle: 10000
-    }
-  });
-} else {
-  console.log('✅ Usando configuração individual do banco de dados');
-  sequelize = new Sequelize({
-    dialect: 'postgres',
-    host: process.env.DB_HOST || 'localhost',
-    port: parseInt(process.env.DB_PORT || '5432'),
-    database: process.env.DB_NAME || 'check_guincho',
-    username: process.env.DB_USER || 'postgres',
-    password: process.env.DB_PASSWORD || 'sua_senha_aqui',
-    logging: process.env.NODE_ENV === 'development' ? console.log : false,
-    pool: {
-      max: 5,
-      min: 0,
-      acquire: 30000,
-      idle: 10000
-    }
-  });
+if (!databaseUrl) {
+  console.error('❌ ERRO CRÍTICO: DATABASE_URL não foi definida!');
+  console.error('   No Railway: Adicione um plugin PostgreSQL ao seu projeto');
+  console.error('   Localmente: Configure a variável DATABASE_URL no arquivo .env');
+  process.exit(1);
 }
+
+console.log('✅ Conectando ao banco de dados via DATABASE_URL...');
+
+const sequelize = new Sequelize(databaseUrl, {
+  dialect: 'postgres',
+  logging: process.env.NODE_ENV === 'development' ? console.log : false,
+  pool: {
+    max: 5,
+    min: 0,
+    acquire: 30000,
+    idle: 10000
+  },
+  // Importante para Railway/containers
+  dialectOptions: {
+    ssl: process.env.NODE_ENV === 'production' ? { require: true, rejectUnauthorized: false } : false
+  }
+});
 
 export const testConnection = async () => {
   try {
