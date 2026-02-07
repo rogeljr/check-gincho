@@ -49,7 +49,6 @@ export default function NovoSinistroScreen() {
   const [origemCoords, setOrigemCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const [destinoCoords, setDestinoCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const [quilometragem, setQuilometragem] = useState<number>(0);
-  
   const [loading, setLoading] = useState(false);
   const [gpsLoading, setGpsLoading] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
@@ -57,11 +56,11 @@ export default function NovoSinistroScreen() {
   const [localId, setLocalId] = useState<number | null>(null);
   const [fotosPreview, setFotosPreview] = useState<string[]>([]);
   const [pdfLocalUrl, setPdfLocalUrl] = useState<string | null>(null);
-  
   const [assinaturaModalVisible, setAssinaturaModalVisible] = useState(false);
   const [assinaturaBase64, setAssinaturaBase64] = useState<string>('');
   const [numeroSinistro, setNumeroSinistro] = useState<string>('');
   const signatureRef = useRef<any>(null);
+  const [origemCapturada, setOrigemCapturada] = useState(false);
   
   useEffect(() => {
     initDatabase();
@@ -337,6 +336,7 @@ export default function NovoSinistroScreen() {
       if (tipo === 'origem') {
         setOrigemCoords(coords);
         handleChange('origem_endereco', enderecoFormatado);
+        setOrigemCapturada(true);
       } else {
         setDestinoCoords(coords);
         handleChange('destino_endereco', enderecoFormatado);
@@ -1102,9 +1102,9 @@ export default function NovoSinistroScreen() {
           <View style={styles.gpsRow}>
             <Text style={styles.label}>Origem</Text>
             <TouchableOpacity
-              style={[styles.gpsButton, gpsLoading && styles.buttonDisabled]}
+              style={[styles.gpsButton, (gpsLoading || origemCapturada) && styles.buttonDisabled]}
               onPress={() => capturarLocalizacao('origem')}
-              disabled={gpsLoading || loading}
+              disabled={gpsLoading || loading || origemCapturada}
             >
               <Text style={styles.gpsButtonText}>
                 {gpsLoading ? '...' : '📍 Capturar'}
@@ -1117,7 +1117,7 @@ export default function NovoSinistroScreen() {
             onChangeText={(text) => handleChange('origem_endereco', text)}
             placeholder="Endereço de origem ou use o GPS"
             multiline
-            editable={!loading}
+            editable={!loading && !origemCapturada}
           />
           {origemCoords && (
             <Text style={styles.coordsText}>
