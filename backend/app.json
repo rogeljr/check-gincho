@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "7730b2b4-677a-4252-b1bf-ce5d38132f87"
+      }
+    },
+    "android": {
+      "package": "com.rogeljr007.checkguinchobackend"
+    }
+  }
+}
