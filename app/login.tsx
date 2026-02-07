@@ -1,7 +1,4 @@
 import React, { useState } from 'react';
-// Comentário de teste para push no arquivo login.tsx
-import React, { useState } from 'react';
-import {
 import {
   View,
   Text,

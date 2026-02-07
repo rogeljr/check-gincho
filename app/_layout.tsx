@@ -1,4 +1,3 @@
-// Comentário de teste para push no arquivo _layout.tsx
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack, useDeepLinkURL } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
