@@ -233,7 +233,8 @@ export const emailContaValidada = (nomeEmpresa: string): string => {
 };
 
 // Template para enviar PDF do sinistro para o cliente
-export const emailPDFSinistroCliente = (nomeCliente: string, nomeEmpresa: string, placaVeiculo: string): string => {
+export const emailPDFSinistroCliente = (nomeCliente: string, nomeEmpresa: string, cpfCliente: string): string => {
+  const cpfSenha = (cpfCliente || '').replace(/\D/g, '');
   return `
     <!DOCTYPE html>
     <html>
@@ -258,18 +259,18 @@ export const emailPDFSinistroCliente = (nomeCliente: string, nomeEmpresa: string
         <div class="content">
           <p>Olá <strong>${nomeCliente}</strong>,</p>
           
-          <p>O sinistro referente ao veículo <strong>${placaVeiculo}</strong> foi finalizado com sucesso pela <strong>${nomeEmpresa}</strong>.</p>
+          <p>Seu sinistro foi finalizado com sucesso pela <strong>${nomeEmpresa}</strong>.</p>
           
           <p>Em anexo está o relatório completo com todas as informações do atendimento, incluindo fotos e assinatura.</p>
           
           <div class="password-section">
             <h3>🔐 Como abrir o documento PDF:</h3>
             <p>O arquivo PDF está protegido por senha de segurança.</p>
-            <p><strong>Use a placa do veículo como senha:</strong></p>
+            <p><strong>Use o CPF do cliente como senha:</strong></p>
             <p style="font-size: 18px; font-weight: bold; text-align: center; color: #d32f2f; background: white; padding: 10px; border-radius: 5px;">
-              ${placaVeiculo}
+              ${cpfSenha}
             </p>
-            <p><em>Dica: Digite a placa sem espaços ou caracteres especiais, como ela aparece acima.</em></p>
+            <p><em>Dica: Digite somente os números do CPF.</em></p>
           </div>
           
           <div class="highlight">

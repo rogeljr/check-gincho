@@ -14,7 +14,6 @@ class ApiService {
       },
       httpAgent: undefined,
       httpsAgent: undefined,
-      validateStatus: () => true, // Aceita qualquer status
     });
     
     // Interceptor para adicionar token em todas as requisições

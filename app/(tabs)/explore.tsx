@@ -106,7 +106,7 @@ export default function SinistrosPendentesScreen() {
               : `data:image/png;base64,${sinistro.assinatura_base64}`;
             
             await apiService.post(`sinistros/${sinistro.servidor_id}/assinatura`, {
-              assinatura: assinaturaDataUri,
+              assinatura_base64: assinaturaDataUri,
               nome: sinistro.nome_cliente
             });
           } catch (error) {

@@ -156,7 +156,7 @@ export default function CadastroEmpresaScreen() {
       
       Alert.alert(
         'Cadastro Realizado!',
-        `Empresa cadastrada com sucesso!\n\nCódigo: ${response.codigo}\n\nLicenças: ${quantidadeLicencas}\nValor mensal: R$ ${valorMensal.toFixed(2)}\n\nEnviamos um email de confirmação para ${formData.email}. Clique no link para validar sua conta e poder fazer login.`,
+        `Empresa cadastrada com sucesso!\n\nCódigo: ${response.codigo}\n\nLicenças: ${quantidadeLicencas}\nValor mensal: R$ ${valorMensal.toFixed(2)}\n\nLogin liberado com a senha cadastrada.`,
         [
           {
             text: 'OK',
@@ -347,7 +347,7 @@ export default function CadastroEmpresaScreen() {
                   <Text style={styles.precoTotalLabel}>Valor mensal:</Text>
                   <Text style={styles.precoTotalValor}>R$ {valorMensal.toFixed(2)}</Text>
                 </View>
-                <Text style={styles.trialInfo}>
+                <Text style={styles.licencasTrialText}>
                   🎁 7 dias de teste grátis! Você só pagará após o período de avaliação.
                 </Text>
               </View>
@@ -544,7 +544,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#27AE60',
   },
-  trialInfo: {
+  licencasTrialText: {
     fontSize: 11,
     color: '#27AE60',
     marginTop: 12,
@@ -596,4 +596,3 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
-

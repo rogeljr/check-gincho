@@ -405,6 +405,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 16,
+    paddingTop: 48,
     backgroundColor: '#f5f5f5',
   },
   title: {

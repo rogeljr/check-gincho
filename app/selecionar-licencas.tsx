@@ -59,27 +59,27 @@ export default function SelecionarLicencasScreen() {
       
       console.log('✅ Resposta recebida:', response);
       
-      if (response.init_point) {
+      const checkoutUrl = response.checkout_url || response.init_point || response.sandbox_init_point;
+
+      if (checkoutUrl) {
         // Abrir URL de pagamento
-        const result = await WebBrowser.openBrowserAsync(response.init_point);
+        await WebBrowser.openBrowserAsync(checkoutUrl);
         
-        if (result.type === 'success') {
-          // Após retornar do pagamento, atualizar dados da empresa
-          await updateEmpresa();
-          
-          Alert.alert(
-            'Pagamento Enviado',
-            'Sua solicitação de licenças foi enviada para processamento. Você será redirecionado.',
-            [
-              {
-                text: 'OK',
-                onPress: () => {
-                  router.replace('/(tabs)');
-                }
+        // Após retornar do pagamento, atualizar dados da empresa
+        await updateEmpresa();
+        
+        Alert.alert(
+          'Pagamento Enviado',
+          'Sua solicitação de licenças foi enviada para processamento. Você será redirecionado.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                router.replace('/(tabs)');
               }
-            ]
-          );
-        }
+            }
+          ]
+        );
       } else {
         Alert.alert('Erro', 'Não foi possível gerar o link de pagamento');
       }

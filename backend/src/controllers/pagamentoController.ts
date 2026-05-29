@@ -7,6 +7,19 @@ import Empresa from '../models/Empresa';
 const paymentClient = new Payment(mercadoPagoConfig);
 const preferenceClient = new Preference(mercadoPagoConfig);
 
+const getNotificationUrl = () => {
+  const backendUrl = process.env.BACKEND_URL;
+  if (!backendUrl?.startsWith('https://')) return undefined;
+  return `${backendUrl.replace(/\/$/, '')}/api/pagamentos/webhook`;
+};
+
+const getCheckoutUrl = (preference: any) => {
+  const token = process.env.MERCADO_PAGO_ACCESS_TOKEN || '';
+  return token.startsWith('TEST-')
+    ? preference.sandbox_init_point || preference.init_point
+    : preference.init_point || preference.sandbox_init_point;
+};
+
 // Criar preferência de pagamento (PIX ou Cartão)
 export const criarPreferencia = async (req: Request, res: Response) => {
   try {
@@ -38,7 +51,7 @@ export const criarPreferencia = async (req: Request, res: Response) => {
           pending: 'checkguincho://pagamento/pendente'
         },
         auto_return: 'approved',
-        // notification_url: `${process.env.BACKEND_URL || 'http://localhost:3000'}/api/pagamentos/webhook`,
+        notification_url: getNotificationUrl(),
         external_reference: `empresa_${empresa.id}_${Date.now()}`,
         statement_descriptor: 'CHECK GUINCHO',
         payment_methods: {
@@ -64,7 +77,8 @@ export const criarPreferencia = async (req: Request, res: Response) => {
     return res.json({
       preference_id: preference.id,
       init_point: preference.init_point,
-      sandbox_init_point: preference.sandbox_init_point
+      sandbox_init_point: preference.sandbox_init_point,
+      checkout_url: getCheckoutUrl(preference)
     });
   } catch (error: any) {
     console.error('❌ Erro ao criar preferência:', {
@@ -137,7 +151,7 @@ export const selecionarLicencas = async (req: Request, res: Response) => {
           pending: 'checkguincho://pagamento/pendente'
         },
         auto_return: 'approved',
-        // notification_url: `${process.env.BACKEND_URL || 'http://localhost:3000'}/api/pagamentos/webhook`,
+        notification_url: getNotificationUrl(),
         external_reference: `empresa_${empresa.id}_${Date.now()}_${quantidade_licencas}lic`,
         statement_descriptor: 'CHECK GUINCHO',
         payment_methods: {
@@ -167,6 +181,7 @@ export const selecionarLicencas = async (req: Request, res: Response) => {
       preference_id: preference.id,
       init_point: preference.init_point,
       sandbox_init_point: preference.sandbox_init_point,
+      checkout_url: getCheckoutUrl(preference),
       quantidade_licencas,
       valor_total: valorTotal,
       preco_por_licenca: precoPorLicenca
@@ -184,17 +199,21 @@ export const selecionarLicencas = async (req: Request, res: Response) => {
 // Webhook do Mercado Pago (notificações de pagamento)
 export const webhookMercadoPago = async (req: Request, res: Response) => {
   try {
-    const { type, data } = req.body;
+    const type = req.body?.type || req.query?.type || req.query?.topic;
+    const paymentId = req.body?.data?.id || req.query?.['data.id'] || req.query?.id;
     
     // Apenas processar notificações de pagamento
     if (type !== 'payment') {
       return res.sendStatus(200);
     }
-    
-    const paymentId = data.id;
+
+    if (!paymentId) {
+      console.warn('⚠️ [WEBHOOK] Notificação de pagamento sem ID:', { body: req.body, query: req.query });
+      return res.sendStatus(400);
+    }
     
     // Buscar informações do pagamento
-    const payment = await paymentClient.get({ id: paymentId });
+    const payment = await paymentClient.get({ id: String(paymentId) });
     
     if (!payment) {
       return res.sendStatus(404);

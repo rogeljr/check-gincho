@@ -172,7 +172,7 @@ export default function AssinaturaScreen() {
     try {
       setCriandoPagamento(true);
       const pref = await pagamentoService.criarPreferencia();
-      const url = pref.init_point || pref.sandbox_init_point;
+      const url = pref.checkout_url || pref.init_point || pref.sandbox_init_point;
 
       // Se já aprovado em modo teste
       if (pref.status === 'approved') {

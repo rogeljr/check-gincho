@@ -315,6 +315,14 @@ export default function NovoSinistroScreen() {
   };
   
   const capturarLocalizacao = async (tipo: 'origem' | 'destino') => {
+    if (tipo === 'destino') {
+      const cpfNumbers = formData.cpf_cliente.replace(/\D/g, '');
+      if (cpfNumbers.length !== 11) {
+        Alert.alert('Erro', 'Digite o CPF do cliente antes de capturar o destino e coletar a assinatura.');
+        return;
+      }
+    }
+
     setGpsLoading(true);
     
     try {
@@ -485,6 +493,12 @@ export default function NovoSinistroScreen() {
     
     if (!formData.placa_veiculo.trim()) {
       Alert.alert('Erro', 'Digite a placa do veículo');
+      return false;
+    }
+
+    const cpfNumbers = formData.cpf_cliente.replace(/\D/g, '');
+    if (cpfNumbers.length !== 11) {
+      Alert.alert('Erro', 'Digite o CPF do cliente com 11 dígitos. Ele será a senha do PDF.');
       return false;
     }
     
@@ -1166,9 +1180,9 @@ export default function NovoSinistroScreen() {
           <View style={styles.gpsRow}>
             <Text style={styles.label}>Destino</Text>
             <TouchableOpacity
-              style={[styles.gpsButton, gpsLoading && styles.buttonDisabled]}
+              style={[styles.gpsButton, (gpsLoading || !!destinoCoords) && styles.buttonDisabled]}
               onPress={() => capturarLocalizacao('destino')}
-              disabled={gpsLoading || loading}
+              disabled={gpsLoading || loading || !!destinoCoords}
             >
               <Text style={styles.gpsButtonText}>
                 {gpsLoading ? '...' : '📍 Capturar'}
@@ -1181,7 +1195,7 @@ export default function NovoSinistroScreen() {
             onChangeText={(text) => handleChange('destino_endereco', text)}
             placeholder="Endereço de destino ou use o GPS"
             multiline
-            editable={!loading}
+            editable={!loading && !destinoCoords}
           />
           {destinoCoords && (
             <Text style={styles.coordsText}>

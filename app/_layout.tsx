@@ -1,5 +1,5 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Stack, useDeepLinkURL } from 'expo-router';
+import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 
@@ -23,8 +23,8 @@ export default function RootLayout() {
           <Stack.Screen name="selecionar-licencas" options={{ headerShown: false }} />
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-          <Stack.Screen name="sinistro/novo" options={{ headerShown: true, title: 'Novo Sinistro' }} />
-          <Stack.Screen name="sinistro/fotos" options={{ headerShown: true, title: 'Fotos' }} />
+          <Stack.Screen name="sinistro/novo" options={{ headerShown: false }} />
+          <Stack.Screen name="sinistro/fotos" options={{ headerShown: false }} />
         </Stack>
         <StatusBar style="auto" />
       </ThemeProvider>

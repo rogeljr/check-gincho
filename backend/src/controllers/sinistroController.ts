@@ -32,13 +32,19 @@ export const criarSinistro = async (req: Request, res: Response) => {
       placa_veiculo,
       tipo_atendimento,
       nome_cliente,
+      cpf_cliente,
+      telefone_cliente,
+      modelo_veiculo,
+      cor_veiculo,
       observacoes,
       latitude_inicio,
       longitude_inicio,
       origem_latitude,
       origem_longitude,
+      origem_endereco,
       destino_latitude,
       destino_longitude,
+      destino_endereco,
       quilometragem,
     } = req.body;
     
@@ -53,11 +59,17 @@ export const criarSinistro = async (req: Request, res: Response) => {
       placa_veiculo: placa_veiculo.toUpperCase(),
       tipo_atendimento: tipo_atendimento || 'Guincho',
       nome_cliente,
+      cpf_cliente,
+      telefone_cliente,
+      modelo_veiculo,
+      cor_veiculo,
       observacoes,
       latitude_inicio: latitude_inicio || origem_latitude,
       longitude_inicio: longitude_inicio || origem_longitude,
+      origem_endereco,
       latitude_fim: destino_latitude,
       longitude_fim: destino_longitude,
+      destino_endereco,
       quilometragem: quilometragem,
       status: 'rascunho',
       sincronizado: true
@@ -171,6 +183,8 @@ export const atualizarSinistro = async (req: Request, res: Response) => {
       origem_endereco,
       latitude_fim,
       longitude_fim,
+      destino_latitude,
+      destino_longitude,
       destino_endereco,
       quilometragem
     } = req.body;
@@ -215,8 +229,12 @@ export const atualizarSinistro = async (req: Request, res: Response) => {
     if (origem_latitude !== undefined) sinistroData.latitude_inicio = origem_latitude;
     if (origem_longitude !== undefined) sinistroData.longitude_inicio = origem_longitude;
     if (origem_endereco !== undefined) sinistroData.origem_endereco = origem_endereco;
-    if (latitude_fim !== undefined) sinistroData.latitude_fim = latitude_fim;
-    if (longitude_fim !== undefined) sinistroData.longitude_fim = longitude_fim;
+    if (latitude_fim !== undefined || destino_latitude !== undefined) {
+      sinistroData.latitude_fim = latitude_fim ?? destino_latitude;
+    }
+    if (longitude_fim !== undefined || destino_longitude !== undefined) {
+      sinistroData.longitude_fim = longitude_fim ?? destino_longitude;
+    }
     if (destino_endereco !== undefined) sinistroData.destino_endereco = destino_endereco;
     if (quilometragem !== undefined) sinistroData.quilometragem = quilometragem;
     
@@ -373,6 +391,11 @@ export const adicionarAssinatura = async (req: Request, res: Response) => {
     if (sinistro.status === 'finalizado') {
       return res.status(400).json({ error: 'Sinistro já finalizado' });
     }
+
+    const cpfCliente = (sinistro.cpf_cliente || '').replace(/\D/g, '');
+    if (cpfCliente.length !== 11) {
+      return res.status(400).json({ error: 'CPF do cliente é obrigatório para gerar o PDF protegido' });
+    }
     
     // Upload para Cloudinary
     const uploadResult = await uploadBase64Image(assinatura_base64, `assinaturas/${sinistro.id}`);
@@ -389,15 +412,11 @@ export const adicionarAssinatura = async (req: Request, res: Response) => {
       if (empresa) {
         const fotos = await (sinistro as any).getFotos?.();
         
-        // 🔐 Gerar senha da placa (sem espaços/traços, maiúscula)
-        const senhaPlaca = sinistro.placa_veiculo.replace(/[\s\-]/g, '').toUpperCase();
-        console.log('🔐 [SINISTRO] Placa:', sinistro.placa_veiculo, '→ Senha:', senhaPlaca);
-        
-        const pdfBuffer = await generatePDF({
+        const pdfBuffer = await generatePDFClienteComSenha({
           sinistro,
           empresa,
           fotos: fotos || []
-        }, senhaPlaca);
+        });
         
         // Upload do PDF para Cloudinary
         const pdfUrl = await uploadPDF(pdfBuffer, sinistro.id);
@@ -499,6 +518,11 @@ export const finalizarSinistro = async (req: Request, res: Response) => {
     if (!sinistro.latitude_fim || !sinistro.longitude_fim) {
       return res.status(400).json({ error: 'Localização final é obrigatória' });
     }
+
+    const cpfCliente = (sinistro.cpf_cliente || '').replace(/\D/g, '');
+    if (cpfCliente.length !== 11) {
+      return res.status(400).json({ error: 'CPF do cliente é obrigatório para gerar o PDF protegido' });
+    }
     
     // Buscar fotos associadas (opcional)
     const fotos = await (sinistro as any).getFotos?.();
@@ -515,15 +539,11 @@ export const finalizarSinistro = async (req: Request, res: Response) => {
         return res.status(500).json({ error: 'Empresa não encontrada' });
       }
       
-      // 🔐 Gerar senha da placa (sem espaços/traços, maiúscula)
-      const senhaPlaca = sinistro.placa_veiculo.replace(/[\s\-]/g, '').toUpperCase();
-      console.log('🔐 [FINALIZAR] Placa:', sinistro.placa_veiculo, '→ Senha:', senhaPlaca);
-      
-      const pdfBuffer = await generatePDF({
+      const pdfBuffer = await generatePDFClienteComSenha({
         sinistro,
         empresa,
         fotos: fotos
-      }, senhaPlaca);  // ✅ Passando senha da placa
+      });
       
       // Upload do PDF para Cloudinary
       const pdfUrl = await uploadPDF(pdfBuffer, sinistro.id);
@@ -629,7 +649,7 @@ export const enviarPDFParaCliente = async (req: Request, res: Response) => {
       // Buscar fotos
       const fotos = await (sinistro as any).getFotos?.();
       
-      // Gerar PDF protegido com a placa como senha
+      // Gerar PDF protegido com CPF do cliente; CNPJ da empresa abre como proprietário.
       const pdfBuffer = await generatePDFClienteComSenha({
         sinistro,
         empresa,
@@ -641,7 +661,7 @@ export const enviarPDFParaCliente = async (req: Request, res: Response) => {
       const html = emailPDFSinistroCliente(
         nomeCliente,
         empresa.nome,
-        sinistro.placa_veiculo
+        sinistro.cpf_cliente || ''
       );
       
       const emailEnviado = await sendEmailComAnexo({
@@ -671,7 +691,7 @@ export const enviarPDFParaCliente = async (req: Request, res: Response) => {
       return res.json({
         message: 'PDF enviado com sucesso para o email do cliente',
         email: email_cliente,
-        senha: sinistro.placa_veiculo
+        senha: (sinistro.cpf_cliente || '').replace(/\D/g, '')
       });
     } catch (error) {
       console.error('Erro ao gerar/enviar PDF:', error);
@@ -701,8 +721,10 @@ export const gerarLinkWhatsApp = async (req: Request, res: Response) => {
     // Limpar o telefone (remover caracteres especiais)
     const telefoneLimpo = telefone_cliente.replace(/\D/g, '');
     
-    // Gerar senha de proteção do PDF (apenas placa sem espaço/traço)
-    const senhaPlaca = sinistro.placa_veiculo.replace(/[\s\-]/g, '').toUpperCase(); // Remove espaços e traços
+    const senhaCpf = (sinistro.cpf_cliente || '').replace(/\D/g, '');
+    if (senhaCpf.length !== 11) {
+      return res.status(400).json({ error: 'CPF do cliente é obrigatório para informar a senha do PDF' });
+    }
     
     // Mensagem WhatsApp com instruções de proteção
     const mensagem = `Olá ${sinistro.nome_cliente}! 👋
@@ -713,9 +735,9 @@ Seu sinistro #${sinistro.numero_sinistro} foi processado com sucesso.
 📄 Seu PDF foi enviado para seu email e está protegido.
 
 🔐 PARA ABRIR O PDF, DIGITE A SENHA:
-${senhaPlaca}
+${senhaCpf}
 
-(Placa do veículo SEM espaço ou traço)
+(CPF do cliente, somente números)
 
 Check Guincho ✅`;
     
@@ -725,14 +747,14 @@ Check Guincho ✅`;
     // Link WhatsApp (formato internacional)
     const linkWhatsApp = `https://wa.me/${telefoneLimpo}?text=${mensagemCodificada}`;
     
-    console.log(`✅ [WHATSAPP] Link gerado para sinistro ${id} com proteção de PDF (placa: ${senhaPlaca})`);
+    console.log(`✅ [WHATSAPP] Link gerado para sinistro ${id} com proteção de PDF por CPF`);
     
     return res.json({
       success: true,
       link: linkWhatsApp,
       mensagem: mensagem,
       telefone: telefoneLimpo,
-      senha_pdf: senhaPlaca
+      senha_pdf: senhaCpf
     });
   } catch (error) {
     console.error('Erro ao gerar link WhatsApp:', error);

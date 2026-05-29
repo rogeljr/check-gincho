@@ -5,14 +5,18 @@ export interface PreferenciaPagamentoResponse {
   preference_id: string;
   init_point?: string;
   sandbox_init_point?: string;
+  checkout_url?: string;
   status?: 'approved' | 'pending';
   message?: string;
 }
 
 export interface SelecionarLicencasResponse {
   message: string;
-  init_point: string;
-  external_reference: string;
+  preference_id?: string;
+  init_point?: string;
+  sandbox_init_point?: string;
+  checkout_url?: string;
+  external_reference?: string;
   quantidade_licencas: number;
   valor_total: number;
 }
@@ -45,7 +49,7 @@ class PagamentoService {
     
     try {
       const response = await apiService.post<SelecionarLicencasResponse>(
-        '/pagamentos/selecionar-licencas',
+        ENDPOINTS.SELECIONAR_LICENCAS,
         { quantidade_licencas: quantidadeLicencas }
       );
       

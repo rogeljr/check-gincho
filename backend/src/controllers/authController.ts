@@ -126,6 +126,22 @@ export const cadastrarEmpresa = async (req: Request, res: Response) => {
     }
     
     // Verificar se CNPJ já existe
+    if (!nome || !cnpjLimpo || !emailNormalizado || !senha || !cpfLimpo) {
+      return res.status(400).json({ error: 'Nome, CNPJ, email, CPF do responsável e senha são obrigatórios' });
+    }
+
+    if (!validarCNPJ(cnpjLimpo)) {
+      return res.status(400).json({ error: 'CNPJ inválido' });
+    }
+
+    if (cpfLimpo.length !== 11) {
+      return res.status(400).json({ error: 'CPF do responsável inválido' });
+    }
+
+    if (senha.length < 6) {
+      return res.status(400).json({ error: 'Senha deve ter no mínimo 6 caracteres' });
+    }
+
     const empresaExistente = await Empresa.findOne({ where: { cnpj: cnpjFormatado } });
     if (empresaExistente) {
       console.log('❌ [CADASTRO] CNPJ já cadastrado');
@@ -167,7 +183,7 @@ export const cadastrarEmpresa = async (req: Request, res: Response) => {
       email: emailNormalizado,
       senha: senhaHash,
       cpf_responsavel: cpfLimpo,
-      quantidade_licencas: 1,
+      quantidade_licencas: licencas,
       data_inicio_trial: agora,
       data_expiracao: expiracao,
       ativo: false // Será ativado após validação por email
@@ -618,7 +634,11 @@ export const login = async (req: Request, res: Response) => {
         nome: empresa.nome,
         codigo: empresa.codigo,
         email: empresa.email,
-        ativo: empresa.ativo
+        ativo: empresa.ativo && empresa.isAssinaturaAtiva(),
+        diasRestantes: empresa.diasRestantes(),
+        assinaturaAtiva: empresa.isAssinaturaAtiva(),
+        emTrial: empresa.isTrialAtivo(),
+        quantidade_licencas: empresa.quantidade_licencas
       }
     });
   } catch (error) {
@@ -647,7 +667,8 @@ export const getEmpresa = async (req: Request, res: Response) => {
       ativo: ativoAjustado, // Ajustado para considerar expiração
       diasRestantes: diasRestantes,
       assinaturaAtiva: assinaturaAtiva,
-      emTrial: empresa.isTrialAtivo()
+      emTrial: empresa.isTrialAtivo(),
+      quantidade_licencas: empresa.quantidade_licencas
     });
   } catch (error) {
     console.error('Erro ao obter empresa:', error);
@@ -783,7 +804,7 @@ export const atualizarEmpresa = async (req: Request, res: Response) => {
         email: empresa.email,
         codigo: empresa.codigo,
         ativo: empresa.ativo,
-        diasRestantes: empresa.diasRestantes
+        diasRestantes: empresa.diasRestantes()
       }
     });
   } catch (error) {

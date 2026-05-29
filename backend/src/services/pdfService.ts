@@ -27,7 +27,11 @@ const downloadImage = (url: string): Promise<Buffer> => {
   });
 };
 
-export const generatePDF = async (data: PDFData, senhaProtecao?: string): Promise<Buffer> => {
+export const generatePDF = async (
+  data: PDFData,
+  senhaProtecao?: string,
+  senhaProprietario?: string
+): Promise<Buffer> => {
   return new Promise(async (resolve, reject) => {
     try {
       console.log('🔐 [PDF] Gerando PDF com senha:', senhaProtecao || 'SEM SENHA');
@@ -36,7 +40,7 @@ export const generatePDF = async (data: PDFData, senhaProtecao?: string): Promis
       const docOptions: any = { size: 'A4', margin: 50 };
       if (senhaProtecao) {
         docOptions.userPassword = senhaProtecao;
-        docOptions.ownerPassword = ''; // Sem restrições adicionais para o proprietário
+        docOptions.ownerPassword = senhaProprietario || senhaProtecao;
         console.log('🔐 [PDF] Senha configurada no documento');
       }
       
@@ -274,16 +278,30 @@ export const uploadPDF = async (pdfBuffer: Buffer, sinistroId: number): Promise<
   });
 };
 
-// Gerar PDF com senha para cliente (senha = placa do veículo)
+const somenteNumeros = (value?: string): string => (value || '').replace(/\D/g, '');
+
+const getSenhaCliente = (sinistro: Sinistro): string => {
+  const cpf = somenteNumeros(sinistro.cpf_cliente);
+  if (cpf.length !== 11) {
+    throw new Error('CPF do cliente é obrigatório para proteger o PDF');
+  }
+  return cpf;
+};
+
+const getSenhaEmpresa = (empresa: Empresa): string => {
+  const cnpj = somenteNumeros(empresa.cnpj);
+  if (cnpj.length !== 14) {
+    throw new Error('CNPJ da empresa é obrigatório para proteger o PDF');
+  }
+  return cnpj;
+};
+
+// Gerar PDF com senha para cliente (senha = CPF do cliente; CNPJ abre como proprietário)
 export const generatePDFClienteComSenha = async (data: PDFData): Promise<Buffer> => {
   try {
-    // Senha é a placa do veículo (sem formatação)
-    const placaSenha = (data.sinistro.placa_veiculo || '')
-      .replace(/[^A-Z0-9]/gi, '')
-      .toUpperCase();
-    
-    // Gerar PDF já com proteção
-    const pdfBuffer = await generatePDF(data, placaSenha);
+    const cpfSenha = getSenhaCliente(data.sinistro);
+    const cnpjSenha = getSenhaEmpresa(data.empresa);
+    const pdfBuffer = await generatePDF(data, cpfSenha, cnpjSenha);
     
     return pdfBuffer;
   } catch (error) {
@@ -295,11 +313,8 @@ export const generatePDFClienteComSenha = async (data: PDFData): Promise<Buffer>
 // Gerar PDF com senha para prestador (senha = CNPJ da empresa)
 export const generatePDFPrestadorComSenha = async (data: PDFData): Promise<Buffer> => {
   try {
-    // Senha é o CNPJ da empresa (sem formatação)
-    const cnpjSenha = (data.empresa.cnpj || '').replace(/[\s.-/]/g, '');
-    
-    // Gerar PDF já com proteção
-    const pdfBuffer = await generatePDF(data, cnpjSenha);
+    const cnpjSenha = getSenhaEmpresa(data.empresa);
+    const pdfBuffer = await generatePDF(data, cnpjSenha, cnpjSenha);
     
     return pdfBuffer;
   } catch (error) {

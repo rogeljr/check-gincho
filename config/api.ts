@@ -26,5 +26,6 @@ export const ENDPOINTS = {
   
   // Pagamentos
   CRIAR_PREFERENCIA: '/pagamentos/criar-preferencia',
+  SELECIONAR_LICENCAS: '/pagamentos/selecionar-licencas',
   LISTAR_PAGAMENTOS: '/pagamentos',
 };

@@ -15,18 +15,27 @@ export default function TabLayout() {
         tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
         headerShown: false,
         tabBarButton: HapticTab,
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: '600',
+        },
+        tabBarStyle: {
+          minHeight: 64,
+          paddingTop: 6,
+          paddingBottom: 8,
+        },
       }}>
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Sinistros Sincronizados',
+          title: 'Sincronizados',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
         }}
       />
       <Tabs.Screen
         name="explore"
         options={{
-          title: 'Sinistros Não Sincronizados',
+          title: 'Pendentes',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
         }}
       />

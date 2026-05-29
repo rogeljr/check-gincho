@@ -11,6 +11,7 @@ export interface Empresa {
   diasRestantes: number;
   assinaturaAtiva: boolean;
   emTrial?: boolean;
+  quantidade_licencas?: number;
 }
 
 export interface LoginResponse {
@@ -21,7 +22,9 @@ export interface LoginResponse {
 export interface VerificarEmpresaResponse {
   exists: boolean;
   needsPassword?: boolean;
+  needsValidation?: boolean;
   nome?: string;
+  email?: string;
   message?: string;
 }
 
@@ -71,7 +74,7 @@ class AuthService {
 
   // Verificar se empresa existe
   async verificarEmpresa(codigo: string): Promise<VerificarEmpresaResponse> {
-    return apiService.post<VerificarEmpresaResponse>(ENDPOINTS.VERIFICAR_EMPRESA, { codigo });
+    return apiService.post<VerificarEmpresaResponse>(ENDPOINTS.VERIFICAR_EMPRESA, { codigo: codigo.trim().toLowerCase() });
   }
   
   // Cadastrar nova empresa COM SENHA
@@ -90,9 +93,10 @@ class AuthService {
     try {
       const response = await apiService.post<CadastrarEmpresaResponse>(ENDPOINTS.CADASTRAR_EMPRESA, {
         ...data,
+        email: data.email.trim().toLowerCase(),
         device_id
       });
-      return response.data;
+      return response;
     } catch (error: any) {
       throw new Error(error.response?.data?.error || 'Erro ao cadastrar empresa');
     }
@@ -109,7 +113,7 @@ class AuthService {
   }): Promise<CadastrarEmpresaResponse> {
     try {
       const response = await apiService.post<CadastrarEmpresaResponse>(ENDPOINTS.CADASTRAR_EMPRESA, data);
-      return response.data;
+      return response;
     } catch (error: any) {
       throw new Error(error.response?.data?.error || 'Erro ao cadastrar empresa');
     }
@@ -121,7 +125,7 @@ class AuthService {
     const device_id = await this.getDeviceId();
     
     const response = await apiService.post<LoginResponse>(ENDPOINTS.LOGIN, { 
-      codigo, 
+      codigo: codigo.trim().toLowerCase(), 
       senha, 
       device_id 
     });
