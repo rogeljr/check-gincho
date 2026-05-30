@@ -37,10 +37,19 @@ export const generatePDF = async (
       console.log('🔐 [PDF] Gerando PDF com senha:', senhaProtecao || 'SEM SENHA');
       
       // Se houver senha, adicionar criptografia
-      const docOptions: any = { size: 'A4', margin: 50 };
+      const docOptions: any = { size: 'A4', margin: 50, pdfVersion: '1.7' };
       if (senhaProtecao) {
         docOptions.userPassword = senhaProtecao;
         docOptions.ownerPassword = senhaProprietario || senhaProtecao;
+        docOptions.permissions = {
+          printing: 'highResolution',
+          modifying: false,
+          copying: false,
+          annotating: false,
+          fillingForms: false,
+          contentAccessibility: true,
+          documentAssembly: false
+        };
         console.log('🔐 [PDF] Senha configurada no documento');
       }
       
@@ -48,7 +57,13 @@ export const generatePDF = async (
       const chunks: Buffer[] = [];
       
       doc.on('data', (chunk) => chunks.push(chunk));
-      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('end', () => {
+        const pdfBuffer = Buffer.concat(chunks);
+        if (senhaProtecao && !pdfBuffer.includes(Buffer.from('/Encrypt'))) {
+          return reject(new Error('Falha ao criptografar o PDF: dicionário /Encrypt ausente'));
+        }
+        resolve(pdfBuffer);
+      });
       doc.on('error', reject);
       
       const { sinistro, empresa, fotos } = data;

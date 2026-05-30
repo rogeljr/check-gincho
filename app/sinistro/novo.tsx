@@ -496,15 +496,26 @@ export default function NovoSinistroScreen() {
       return;
     }
 
-    try {
-      // Use expo-sharing to open the PDF file securely on both iOS and Android
-      await Sharing.shareAsync(pdfLocalUrl, {
-        mimeType: 'application/pdf',
-      });
-    } catch (error) {
-      console.error('Erro ao abrir PDF:', error);
-      Alert.alert('Erro', 'Não foi possível abrir o PDF local');
-    }
+    Alert.alert(
+      'Comprovante local sem senha',
+      'Este arquivo é gerado no celular para conferência offline e não possui senha. O PDF protegido por CPF/CNPJ é gerado pelo servidor após sincronizar/finalizar o sinistro.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Abrir',
+          onPress: async () => {
+            try {
+              await Sharing.shareAsync(pdfLocalUrl, {
+                mimeType: 'application/pdf',
+              });
+            } catch (error) {
+              console.error('Erro ao abrir PDF:', error);
+              Alert.alert('Erro', 'Não foi possível abrir o PDF local');
+            }
+          }
+        }
+      ]
+    );
   };
   
   const validateForm = (): boolean => {
@@ -1270,7 +1281,7 @@ export default function NovoSinistroScreen() {
               styles.pdfLocalBtnText,
               !pdfLocalUrl && styles.pdfLocalBtnTextDisabled
             ]}>
-              {pdfLocalUrl ? '📄 Abrir PDF Local' : '📄 PDF Local (Gere assinatura primeiro)'}
+              {pdfLocalUrl ? '📄 Abrir Comprovante Local' : '📄 Comprovante Local (Gere assinatura primeiro)'}
             </Text>
           </TouchableOpacity>
         </View>
