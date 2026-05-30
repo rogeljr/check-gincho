@@ -6,6 +6,7 @@ const router = Router();
 
 // Webhook (público, sem autenticação)
 router.post('/webhook', pagamentoController.webhookMercadoPago);
+router.get('/retorno', pagamentoController.retornoPagamento);
 
 // Rota de desenvolvimento - deletar pagamentos de teste (SEM autenticação)
 if (process.env.NODE_ENV === 'development') {

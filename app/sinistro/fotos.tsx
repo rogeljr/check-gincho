@@ -4,6 +4,7 @@ import { FlatList, StyleSheet, Text, TouchableOpacity, View, Image, Alert, Activ
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import apiService from '../../services/api.service';
 import { databaseService } from '../../services/database.service';
 import { useFocusEffect } from '@react-navigation/native';
@@ -25,6 +26,7 @@ interface Foto {
 
 const FotosSinistro = () => {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { servidor_id, local_id } = useLocalSearchParams();
   const servidorIdParam = Array.isArray(servidor_id) ? servidor_id[0] : servidor_id;
   const localIdParam = Array.isArray(local_id) ? local_id[0] : local_id;
@@ -247,7 +249,7 @@ const FotosSinistro = () => {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingBottom: Math.max(insets.bottom, 24) + 16 }]}>
       <Text style={styles.title}>Fotos do Sinistro</Text>
       <Text style={styles.subtitle}>Total: {fotos.length} foto(s)</Text>
 
@@ -317,7 +319,7 @@ const FotosSinistro = () => {
           <Text style={styles.emptyText}>Nenhuma foto adicionada ainda</Text>
         }
         style={styles.photoList}
-        contentContainerStyle={styles.photoListContent}
+        contentContainerStyle={[styles.photoListContent, { paddingBottom: Math.max(insets.bottom, 24) + 96 }]}
       />
 
       {/* CONTINUAR */}
@@ -506,6 +508,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     marginTop: 12,
+    marginBottom: 8,
   },
   buttonDisabled: {
     backgroundColor: '#95A5A6',

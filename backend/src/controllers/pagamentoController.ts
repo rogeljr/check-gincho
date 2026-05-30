@@ -7,10 +7,31 @@ import Empresa from '../models/Empresa';
 const paymentClient = new Payment(mercadoPagoConfig);
 const preferenceClient = new Preference(mercadoPagoConfig);
 
-const getNotificationUrl = () => {
-  const backendUrl = process.env.BACKEND_URL;
-  if (!backendUrl?.startsWith('https://')) return undefined;
-  return `${backendUrl.replace(/\/$/, '')}/api/pagamentos/webhook`;
+const getPublicBaseUrl = (req: Request) => {
+  const backendUrl = process.env.BACKEND_URL?.replace(/\/$/, '');
+  if (backendUrl?.startsWith('https://')) return backendUrl;
+
+  const host = req.get('host');
+  if (!host) return undefined;
+
+  const protocol = host.includes('railway.app') ? 'https' : req.protocol;
+  return `${protocol}://${host}`;
+};
+
+const getNotificationUrl = (req: Request) => {
+  const publicBaseUrl = getPublicBaseUrl(req);
+  return publicBaseUrl ? `${publicBaseUrl}/api/pagamentos/webhook` : undefined;
+};
+
+const getBackUrls = (req: Request) => {
+  const publicBaseUrl = getPublicBaseUrl(req);
+  if (!publicBaseUrl) return undefined;
+
+  return {
+    success: `${publicBaseUrl}/api/pagamentos/retorno?status=success`,
+    failure: `${publicBaseUrl}/api/pagamentos/retorno?status=failure`,
+    pending: `${publicBaseUrl}/api/pagamentos/retorno?status=pending`
+  };
 };
 
 const getCheckoutUrl = (preference: any) => {
@@ -29,6 +50,9 @@ export const criarPreferencia = async (req: Request, res: Response) => {
     // Valor: R$5 por mês (teste)
     const valorMensal = 5.00;
     
+    const notificationUrl = getNotificationUrl(req);
+    const backUrls = getBackUrls(req);
+    
     const preference = await preferenceClient.create({
       body: {
         items: [
@@ -45,13 +69,9 @@ export const criarPreferencia = async (req: Request, res: Response) => {
           name: empresa.nome,
           email: empresa.email
         },
-        back_urls: {
-          success: 'checkguincho://pagamento/sucesso',
-          failure: 'checkguincho://pagamento/falha',
-          pending: 'checkguincho://pagamento/pendente'
-        },
+        ...(backUrls ? { back_urls: backUrls } : {}),
         auto_return: 'approved',
-        notification_url: getNotificationUrl(),
+        ...(notificationUrl ? { notification_url: notificationUrl } : {}),
         external_reference: `empresa_${empresa.id}_${Date.now()}`,
         statement_descriptor: 'CHECK GUINCHO',
         payment_methods: {
@@ -84,6 +104,8 @@ export const criarPreferencia = async (req: Request, res: Response) => {
     console.error('❌ Erro ao criar preferência:', {
       message: error.message,
       name: error.name,
+      cause: error.cause,
+      response: error.response?.data || error.response,
       stack: error.stack
     });
     return res.status(500).json({ error: 'Erro ao criar preferência de pagamento' });
@@ -129,6 +151,9 @@ export const selecionarLicencas = async (req: Request, res: Response) => {
     const valorTotal = precoPorLicenca * quantidade_licencas;
 
     // Criar preferência no Mercado Pago
+    const notificationUrl = getNotificationUrl(req);
+    const backUrls = getBackUrls(req);
+
     const preference = await preferenceClient.create({
       body: {
         items: [
@@ -145,13 +170,9 @@ export const selecionarLicencas = async (req: Request, res: Response) => {
           name: empresa.nome,
           email: empresa.email
         },
-        back_urls: {
-          success: 'checkguincho://pagamento/sucesso',
-          failure: 'checkguincho://pagamento/falha',
-          pending: 'checkguincho://pagamento/pendente'
-        },
+        ...(backUrls ? { back_urls: backUrls } : {}),
         auto_return: 'approved',
-        notification_url: getNotificationUrl(),
+        ...(notificationUrl ? { notification_url: notificationUrl } : {}),
         external_reference: `empresa_${empresa.id}_${Date.now()}_${quantidade_licencas}lic`,
         statement_descriptor: 'CHECK GUINCHO',
         payment_methods: {
@@ -190,10 +211,49 @@ export const selecionarLicencas = async (req: Request, res: Response) => {
     console.error('❌ Erro ao selecionar licenças:', {
       message: error.message,
       name: error.name,
+      cause: error.cause,
+      response: error.response?.data || error.response,
       stack: error.stack
     });
     return res.status(500).json({ error: 'Erro ao processar seleção de licenças' });
   }
+};
+
+export const retornoPagamento = async (req: Request, res: Response) => {
+  const status = String(req.query.status || 'pending');
+  const appPath = status === 'success'
+    ? 'sucesso'
+    : status === 'failure'
+      ? 'falha'
+      : 'pendente';
+
+  return res.send(`
+    <!DOCTYPE html>
+    <html lang="pt-BR">
+      <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Pagamento - Check Guincho</title>
+        <style>
+          body { font-family: Arial, sans-serif; text-align: center; padding: 40px; background: #f7f9fc; color: #1a1a1a; }
+          .box { max-width: 420px; margin: 0 auto; background: #fff; padding: 28px; border-radius: 10px; border: 1px solid #e6ecf3; }
+          a { display: inline-block; margin-top: 16px; padding: 12px 18px; background: #27AE60; color: #fff; text-decoration: none; border-radius: 8px; font-weight: 700; }
+        </style>
+        <script>
+          setTimeout(function() {
+            window.location.href = 'checkguincho://pagamento/${appPath}';
+          }, 800);
+        </script>
+      </head>
+      <body>
+        <div class="box">
+          <h1>Pagamento ${status}</h1>
+          <p>Você pode voltar para o Check Guincho e tocar em Atualizar Agora.</p>
+          <a href="checkguincho://pagamento/${appPath}">Abrir Check Guincho</a>
+        </div>
+      </body>
+    </html>
+  `);
 };
 
 // Webhook do Mercado Pago (notificações de pagamento)

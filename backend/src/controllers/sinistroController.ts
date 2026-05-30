@@ -226,16 +226,24 @@ export const atualizarSinistro = async (req: Request, res: Response) => {
     if (cor_veiculo !== undefined) sinistroData.cor_veiculo = cor_veiculo;
     if (observacoes !== undefined) sinistroData.observacoes = observacoes;
     if (status) sinistroData.status = status;
-    if (origem_latitude !== undefined) sinistroData.latitude_inicio = origem_latitude;
-    if (origem_longitude !== undefined) sinistroData.longitude_inicio = origem_longitude;
-    if (origem_endereco !== undefined) sinistroData.origem_endereco = origem_endereco;
-    if (latitude_fim !== undefined || destino_latitude !== undefined) {
-      sinistroData.latitude_fim = latitude_fim ?? destino_latitude;
+    const origemJaColetada = !!(sinistro.latitude_inicio || sinistro.longitude_inicio || sinistro.origem_endereco);
+    const destinoJaColetado = !!(sinistro.latitude_fim || sinistro.longitude_fim || sinistro.destino_endereco);
+
+    if (!origemJaColetada) {
+      if (origem_latitude !== undefined) sinistroData.latitude_inicio = origem_latitude;
+      if (origem_longitude !== undefined) sinistroData.longitude_inicio = origem_longitude;
+      if (origem_endereco !== undefined) sinistroData.origem_endereco = origem_endereco;
     }
-    if (longitude_fim !== undefined || destino_longitude !== undefined) {
-      sinistroData.longitude_fim = longitude_fim ?? destino_longitude;
+
+    if (!destinoJaColetado) {
+      if (latitude_fim !== undefined || destino_latitude !== undefined) {
+        sinistroData.latitude_fim = latitude_fim ?? destino_latitude;
+      }
+      if (longitude_fim !== undefined || destino_longitude !== undefined) {
+        sinistroData.longitude_fim = longitude_fim ?? destino_longitude;
+      }
+      if (destino_endereco !== undefined) sinistroData.destino_endereco = destino_endereco;
     }
-    if (destino_endereco !== undefined) sinistroData.destino_endereco = destino_endereco;
     if (quilometragem !== undefined) sinistroData.quilometragem = quilometragem;
     
     await sinistro.save();

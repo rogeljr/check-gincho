@@ -21,6 +21,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import * as Location from 'expo-location';
 import NetInfo from '@react-native-community/netinfo';
 import SignatureCanvas from 'react-native-signature-canvas';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Print from 'expo-print';
 import * as FileSystem from 'expo-file-system/legacy';
 import { databaseService, SinistroLocal } from '../../services/database.service';
@@ -29,6 +30,7 @@ import { API_CONFIG, ENDPOINTS } from '../../config/api';
 
 export default function NovoSinistroScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { edit_id, local_id } = useLocalSearchParams();
   const editId = Array.isArray(edit_id) ? edit_id[0] : edit_id;
   const localIdParam = Array.isArray(local_id) ? local_id[0] : local_id;
@@ -130,6 +132,11 @@ export default function NovoSinistroScreen() {
 
   const continuarCarregamento = async (id: string, data: any) => {
     try {
+        const origemLatitude = data.origem_latitude ?? data.latitude_inicio;
+        const origemLongitude = data.origem_longitude ?? data.longitude_inicio;
+        const destinoLatitude = data.destino_latitude ?? data.latitude_fim;
+        const destinoLongitude = data.destino_longitude ?? data.longitude_fim;
+
         setServidorId(Number(id));
         const local = await databaseService.buscarSinistroPorServidorId(Number(id));
         if (local?.id) {
@@ -152,17 +159,17 @@ export default function NovoSinistroScreen() {
           observacoes: data.observacoes || '',
         });
 
-        if (data.origem_latitude && data.origem_longitude) {
+        if (origemLatitude !== undefined && origemLatitude !== null && origemLongitude !== undefined && origemLongitude !== null) {
           setOrigemCoords({
-            latitude: Number(data.origem_latitude),
-            longitude: Number(data.origem_longitude),
+            latitude: Number(origemLatitude),
+            longitude: Number(origemLongitude),
           });
         }
 
-        if (data.destino_latitude && data.destino_longitude) {
+        if (destinoLatitude !== undefined && destinoLatitude !== null && destinoLongitude !== undefined && destinoLongitude !== null) {
           setDestinoCoords({
-            latitude: Number(data.destino_latitude),
-            longitude: Number(data.destino_longitude),
+            latitude: Number(destinoLatitude),
+            longitude: Number(destinoLongitude),
           });
         }
 
@@ -203,14 +210,14 @@ export default function NovoSinistroScreen() {
         observacoes: local.observacoes || '',
       });
 
-      if (local.origem_latitude && local.origem_longitude) {
+      if (local.origem_latitude !== undefined && local.origem_latitude !== null && local.origem_longitude !== undefined && local.origem_longitude !== null) {
         setOrigemCoords({
           latitude: Number(local.origem_latitude),
           longitude: Number(local.origem_longitude),
         });
       }
 
-      if (local.destino_latitude && local.destino_longitude) {
+      if (local.destino_latitude !== undefined && local.destino_latitude !== null && local.destino_longitude !== undefined && local.destino_longitude !== null) {
         setDestinoCoords({
           latitude: Number(local.destino_latitude),
           longitude: Number(local.destino_longitude),
@@ -315,7 +322,22 @@ export default function NovoSinistroScreen() {
   };
   
   const capturarLocalizacao = async (tipo: 'origem' | 'destino') => {
+    if (tipo === 'origem' && origemCoords) {
+      Alert.alert('Endereço bloqueado', 'A origem já foi coletada e não pode ser alterada neste sinistro.');
+      return;
+    }
+
     if (tipo === 'destino') {
+      if (destinoCoords) {
+        Alert.alert('Endereço bloqueado', 'O destino já foi coletado e não pode ser alterado neste sinistro.');
+        return;
+      }
+
+      if (!origemCoords) {
+        Alert.alert('Erro', 'Capture a origem antes de capturar o destino.');
+        return;
+      }
+
       const cpfNumbers = formData.cpf_cliente.replace(/\D/g, '');
       if (cpfNumbers.length !== 11) {
         Alert.alert('Erro', 'Digite o CPF do cliente antes de capturar o destino e coletar a assinatura.');
@@ -1041,7 +1063,11 @@ export default function NovoSinistroScreen() {
         </View>
       </View>
       
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(insets.bottom, 24) + 24 }]}
+        keyboardShouldPersistTaps="handled"
+      >
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Dados do Cliente</Text>
           
@@ -1116,9 +1142,9 @@ export default function NovoSinistroScreen() {
           <View style={styles.gpsRow}>
             <Text style={styles.label}>Origem</Text>
             <TouchableOpacity
-              style={[styles.gpsButton, gpsLoading && styles.buttonDisabled]}
+              style={[styles.gpsButton, (gpsLoading || !!origemCoords) && styles.buttonDisabled]}
               onPress={() => capturarLocalizacao('origem')}
-              disabled={gpsLoading || loading}
+              disabled={gpsLoading || loading || !!origemCoords}
             >
               <Text style={styles.gpsButtonText}>
                 {gpsLoading ? '...' : '📍 Capturar'}
@@ -1131,7 +1157,7 @@ export default function NovoSinistroScreen() {
             onChangeText={(text) => handleChange('origem_endereco', text)}
             placeholder="Endereço de origem ou use o GPS"
             multiline
-            editable={!loading}
+            editable={!loading && !origemCoords}
           />
           {origemCoords && (
             <Text style={styles.coordsText}>
