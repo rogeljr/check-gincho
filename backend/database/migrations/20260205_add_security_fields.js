@@ -22,6 +22,10 @@ async function migrate() {
     await pool.query(`
       ALTER TABLE empresas 
       ADD COLUMN IF NOT EXISTS cpf_responsavel VARCHAR(14),
+      ADD COLUMN IF NOT EXISTS prestador_nome VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS prestador_telefone VARCHAR(30),
+      ADD COLUMN IF NOT EXISTS logo_url TEXT,
+      ADD COLUMN IF NOT EXISTS logo_cloudinary_id VARCHAR(255),
       ADD COLUMN IF NOT EXISTS device_id VARCHAR(255),
       ADD COLUMN IF NOT EXISTS active_token TEXT,
       ADD COLUMN IF NOT EXISTS ultimo_login TIMESTAMP;

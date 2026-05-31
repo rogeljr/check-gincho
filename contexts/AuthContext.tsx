@@ -6,7 +6,7 @@ interface AuthContextData {
   empresa: Empresa | null;
   loading: boolean;
   assinaturaExpirada: boolean;
-  signIn: (codigo: string, senha: string) => Promise<void>;
+  signIn: (codigo: string, login: string, senha: string) => Promise<void>;
   signOut: () => Promise<void>;
   updateEmpresa: () => Promise<void>;
 }
@@ -71,9 +71,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }
   
-  async function signIn(codigo: string, senha: string) {
+  async function signIn(codigo: string, login: string, senha: string) {
     try {
-      const response = await authService.login(codigo, senha);
+      const response = await authService.login(codigo, login, senha);
       setEmpresa(response.empresa);
       setAssinaturaExpirada(verificarAssinaturaExpirada(response.empresa));
     } catch (error) {

@@ -12,11 +12,26 @@ export interface Empresa {
   assinaturaAtiva: boolean;
   emTrial?: boolean;
   quantidade_licencas?: number;
+  prestador_nome?: string;
+  prestador_telefone?: string;
+  logo_url?: string;
+  login_responsavel?: string;
+}
+
+export interface UsuarioEmpresa {
+  id: number | null;
+  empresa_id: number;
+  nome: string;
+  login: string;
+  email?: string;
+  role: 'admin' | 'operador' | 'visualizador';
+  ativo: boolean;
 }
 
 export interface LoginResponse {
   token: string;
   empresa: Empresa;
+  usuario?: UsuarioEmpresa;
 }
 
 export interface VerificarEmpresaResponse {
@@ -120,12 +135,13 @@ class AuthService {
   }
   
   // Login
-  async login(codigo: string, senha: string): Promise<LoginResponse> {
+  async login(codigo: string, login: string, senha: string): Promise<LoginResponse> {
     // Obter device_id persistente
     const device_id = await this.getDeviceId();
     
     const response = await apiService.post<LoginResponse>(ENDPOINTS.LOGIN, { 
       codigo: codigo.trim().toLowerCase(), 
+      login: login.trim().toLowerCase(),
       senha, 
       device_id 
     });
@@ -133,6 +149,9 @@ class AuthService {
     // Salvar token e dados da empresa
     await AsyncStorage.setItem('@checkguincho:token', response.token);
     await AsyncStorage.setItem('@checkguincho:empresa', JSON.stringify(response.empresa));
+    if (response.usuario) {
+      await AsyncStorage.setItem('@checkguincho:usuario', JSON.stringify(response.usuario));
+    }
     
     return response;
   }
@@ -209,11 +228,64 @@ class AuthService {
       throw error;
     }
   }
+
+  async atualizarPrestador(data: {
+    prestador_nome?: string;
+    prestador_telefone?: string;
+    logo_base64?: string;
+    remover_logo?: boolean;
+  }): Promise<{ success: boolean; empresa: Empresa }> {
+    const response = await apiService.put<{ success: boolean; empresa: Empresa }>(
+      ENDPOINTS.ATUALIZAR_PRESTADOR,
+      data
+    );
+
+    if (response.success && response.empresa) {
+      await AsyncStorage.setItem('@checkguincho:empresa', JSON.stringify(response.empresa));
+    }
+
+    return response;
+  }
+
+  async listarUsuarios(): Promise<{
+    usuarios: UsuarioEmpresa[];
+    limite_funcionarios: number;
+    funcionarios_ativos: number;
+    licencas_total: number;
+  }> {
+    return apiService.get(ENDPOINTS.USUARIOS);
+  }
+
+  async criarUsuario(data: {
+    nome: string;
+    login: string;
+    email?: string;
+    senha: string;
+    role: 'operador' | 'visualizador';
+  }): Promise<{ usuario: UsuarioEmpresa }> {
+    return apiService.post(ENDPOINTS.USUARIOS, data);
+  }
+
+  async atualizarUsuario(id: number, data: {
+    nome?: string;
+    login?: string;
+    email?: string;
+    senha?: string;
+    role?: 'operador' | 'visualizador';
+    ativo?: boolean;
+  }): Promise<{ usuario: UsuarioEmpresa }> {
+    return apiService.put(ENDPOINTS.USUARIO_BY_ID(id), data);
+  }
+
+  async removerUsuario(id: number): Promise<{ success: boolean }> {
+    return apiService.delete(ENDPOINTS.USUARIO_BY_ID(id));
+  }
   
   // Logout
   async logout(): Promise<void> {
     await AsyncStorage.removeItem('@checkguincho:token');
     await AsyncStorage.removeItem('@checkguincho:empresa');
+    await AsyncStorage.removeItem('@checkguincho:usuario');
   }
   
   // Verificar se está logado

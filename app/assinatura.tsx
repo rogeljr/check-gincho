@@ -11,14 +11,16 @@ import {
   Linking,
   AppState,
 } from 'react-native';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
 import authService from '../services/auth.service';
 import pagamentoService, { Pagamento } from '../services/pagamento.service';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function AssinaturaScreen() {
   const { empresa, updateEmpresa } = useAuth();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [pagamentos, setPagamentos] = useState<Pagamento[]>([]);
   const [loadingPagamentos, setLoadingPagamentos] = useState(true);
   const [criandoPagamento, setCriandoPagamento] = useState(false);
@@ -171,25 +173,9 @@ export default function AssinaturaScreen() {
   const handleCriarPagamento = async () => {
     try {
       setCriandoPagamento(true);
-      const pref = await pagamentoService.criarPreferencia();
+      const quantidadeLicencas = empresa?.quantidade_licencas || 1;
+      const pref = await pagamentoService.selecionarLicencas(quantidadeLicencas);
       const url = pref.checkout_url || pref.init_point || pref.sandbox_init_point;
-
-      // Se já aprovado em modo teste
-      if (pref.status === 'approved') {
-        Alert.alert(
-          '✅ Pagamento Aprovado!',
-          'Seu pagamento foi processado com sucesso. Clique em "Atualizar Agora" para confirmar o desbloqueio do app quando o valor cair na sua conta.',
-          [
-            {
-              text: 'OK',
-              onPress: () => {
-                carregarPagamentos();
-              }
-            }
-          ]
-        );
-        return;
-      }
 
       if (!url) {
         Alert.alert('Erro', 'Não foi possível gerar o link de pagamento.');
@@ -246,7 +232,7 @@ export default function AssinaturaScreen() {
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom, 16) + 30 }]}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
       <View style={styles.header}>

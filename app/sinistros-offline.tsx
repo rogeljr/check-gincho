@@ -5,7 +5,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
-  ScrollView,
   ActivityIndicator,
   FlatList,
 } from 'react-native';
@@ -15,6 +14,7 @@ import NetInfo from '@react-native-community/netinfo';
 import { databaseService, SinistroLocal } from '../services/database.service';
 import apiService from '../services/api.service';
 import { ENDPOINTS } from '../config/api';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface SinistroStatus {
   id: number;
@@ -26,6 +26,7 @@ interface SinistroStatus {
 
 export default function SinistrosOfflineScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [sinistrosOffline, setSinistrosOffline] = useState<SinistroLocal[]>([]);
   const [isOnline, setIsOnline] = useState(true);
   const [sincronizando, setSincronizando] = useState(false);
@@ -276,7 +277,7 @@ export default function SinistrosOfflineScreen() {
   return (
     <View style={styles.container}>
       {/* HEADER */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: Math.max(insets.top, 12) + 12 }]}>
         <TouchableOpacity onPress={() => router.back()}>
           <Ionicons name="chevron-back" size={24} color="#fff" />
         </TouchableOpacity>
@@ -309,14 +310,17 @@ export default function SinistrosOfflineScreen() {
             data={statusSincronizacao}
             renderItem={renderizarItem}
             keyExtractor={item => String(item.id)}
-            contentContainerStyle={styles.listContent}
+            contentContainerStyle={[styles.listContent, { paddingBottom: Math.max(insets.bottom, 24) + 96 }]}
             scrollEnabled={true}
           />
 
           <TouchableOpacity
             style={[
               styles.sincronizarButton,
-              { opacity: sincronizando || !isOnline ? 0.6 : 1 }
+              {
+                opacity: sincronizando || !isOnline ? 0.6 : 1,
+                bottom: Math.max(insets.bottom, 20),
+              }
             ]}
             onPress={sincronizarTodos}
             disabled={sincronizando || !isOnline}
@@ -346,7 +350,7 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#2C3E50',
-    paddingTop: 60,
+    paddingTop: 20,
     paddingBottom: 20,
     paddingHorizontal: 20,
     flexDirection: 'row',

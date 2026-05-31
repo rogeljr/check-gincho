@@ -1,89 +1,41 @@
 import React, { useState } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  Alert,
   ActivityIndicator,
+  Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Image,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../contexts/AuthContext';
-import authService from '../services/auth.service';
 
 export default function LoginScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { signIn } = useAuth();
-  
+
   const [codigo, setCodigo] = useState('');
+  const [login, setLogin] = useState('');
   const [senha, setSenha] = useState('');
   const [loading, setLoading] = useState(false);
-  const [empresaExiste, setEmpresaExiste] = useState(false);
-  const [nomeEmpresa, setNomeEmpresa] = useState('');
-  const [verificando, setVerificando] = useState(false);
-  
-  const handleVerificarEmpresa = async () => {
-    if (!codigo.trim()) {
-      Alert.alert('Erro', 'Digite o código da empresa');
-      return;
-    }
-    
-    setVerificando(true);
-    
-    try {
-      const response = await authService.verificarEmpresa(codigo.trim());
-      
-      if (response.exists) {
-        if (response.needsPassword) {
-          Alert.alert(
-            'Aguardando Confirmação',
-            'Empresa cadastrada. Verifique seu email para definir a senha.'
-          );
-        } else if (response.needsValidation) {
-          Alert.alert(
-            '📧 Confirme seu Email',
-            `Seu cadastro foi realizado com sucesso!\n\nEnviamos um link de confirmação para:\n${response.email}\n\nClique no link para ativar sua conta e poder fazer login.`,
-            [{ text: 'OK' }]
-          );
-        } else {
-          setEmpresaExiste(true);
-          setNomeEmpresa(response.nome || '');
-        }
-      } else {
-        Alert.alert(
-          'Empresa não encontrada',
-          'Deseja cadastrar uma nova empresa?',
-          [
-            { text: 'Cancelar', style: 'cancel' },
-            { 
-              text: 'Cadastrar',
-              onPress: () => router.push('/cadastro-empresa')
-            }
-          ]
-        );
-      }
-    } catch (error: any) {
-      Alert.alert('Erro', error.response?.data?.error || 'Erro ao verificar empresa');
-    } finally {
-      setVerificando(false);
-    }
-  };
-  
+
   const handleLogin = async () => {
-    if (!senha.trim()) {
-      Alert.alert('Erro', 'Digite a senha');
+    if (!codigo.trim() || !login.trim() || !senha.trim()) {
+      Alert.alert('Erro', 'Digite codigo da empresa, login e senha');
       return;
     }
-    
+
     setLoading(true);
-    
+
     try {
-      await signIn(codigo, senha);
+      await signIn(codigo, login, senha);
       router.replace('/(tabs)');
     } catch (error: any) {
       Alert.alert('Erro', error.response?.data?.error || 'Erro ao fazer login');
@@ -91,101 +43,86 @@ export default function LoginScreen() {
       setLoading(false);
     }
   };
-  
-  const handleVoltar = () => {
-    setEmpresaExiste(false);
-    setSenha('');
-    setNomeEmpresa('');
-  };
-  
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
     >
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContainer,
+          {
+            paddingTop: Math.max(insets.top, 16),
+            paddingBottom: Math.max(insets.bottom, 16),
+          },
+        ]}
+      >
         <View style={styles.content}>
           <Text style={styles.title}>Check Guincho</Text>
-          
+
           <Image
             source={require('../assets/images/checkgincho.jpg')}
             style={styles.logo}
             resizeMode="contain"
           />
-          
-          <Text style={styles.subtitle}>Sistema de Gestão de Sinistros</Text>
-          
-          {!empresaExiste ? (
-            <View style={styles.form}>
-              <Text style={styles.label}>Código da Empresa</Text>
-              <TextInput
-                style={styles.input}
-                value={codigo}
-                onChangeText={setCodigo}
-                placeholder="Digite o código da empresa"
-                autoCapitalize="none"
-                autoCorrect={false}
-                editable={!verificando}
-              />
-              
-              <TouchableOpacity
-                style={[styles.button, verificando && styles.buttonDisabled]}
-                onPress={handleVerificarEmpresa}
-                disabled={verificando}
-              >
-                {verificando ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.buttonText}>Continuar</Text>
-                )}
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={styles.linkButton}
-                onPress={() => router.push('/cadastro-empresa')}
-              >
-                <Text style={styles.linkText}>Cadastrar nova empresa</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <View style={styles.form}>
-              <Text style={styles.welcomeText}>Bem-vindo de volta!</Text>
-              {nomeEmpresa && (
-                <Text style={styles.companyName}>{nomeEmpresa}</Text>
+
+          <Text style={styles.subtitle}>Sistema de Gestao de Sinistros</Text>
+
+          <View style={styles.form}>
+            <Text style={styles.label}>Codigo da Empresa</Text>
+            <TextInput
+              style={styles.input}
+              value={codigo}
+              onChangeText={setCodigo}
+              placeholder="Digite o codigo da empresa"
+              autoCapitalize="none"
+              autoCorrect={false}
+              editable={!loading}
+            />
+
+            <Text style={styles.label}>Login</Text>
+            <TextInput
+              style={styles.input}
+              value={login}
+              onChangeText={setLogin}
+              placeholder="CNPJ, CPF ou usuario"
+              autoCapitalize="none"
+              autoCorrect={false}
+              editable={!loading}
+            />
+
+            <Text style={styles.label}>Senha</Text>
+            <TextInput
+              style={styles.input}
+              value={senha}
+              onChangeText={setSenha}
+              placeholder="Digite sua senha"
+              secureTextEntry
+              autoCapitalize="none"
+              autoCorrect={false}
+              editable={!loading}
+            />
+
+            <TouchableOpacity
+              style={[styles.button, loading && styles.buttonDisabled]}
+              onPress={handleLogin}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.buttonText}>Entrar</Text>
               )}
-              
-              <Text style={styles.label}>Senha</Text>
-              <TextInput
-                style={styles.input}
-                value={senha}
-                onChangeText={setSenha}
-                placeholder="Digite sua senha"
-                secureTextEntry
-                autoCapitalize="none"
-                autoCorrect={false}
-                editable={!loading}
-              />
-              
-              <TouchableOpacity
-                style={[styles.button, loading && styles.buttonDisabled]}
-                onPress={handleLogin}
-                disabled={loading}
-              >
-                {loading ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.buttonText}>Entrar</Text>
-                )}
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={styles.linkButton}
-                onPress={handleVoltar}
-              >
-                <Text style={styles.linkText}>Voltar</Text>
-              </TouchableOpacity>
-            </View>
-          )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.linkButton}
+              onPress={() => router.push('/cadastro-empresa')}
+            >
+              <Text style={styles.linkText}>Cadastrar nova empresa</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -232,17 +169,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
-  },
-  welcomeText: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 5,
-    color: '#2C3E50',
-  },
-  companyName: {
-    fontSize: 16,
-    color: '#27AE60',
-    marginBottom: 20,
   },
   label: {
     fontSize: 14,

@@ -5,7 +5,21 @@ import Empresa from '../models/Empresa';
 interface JWTPayload {
   empresaId: number;
   codigo: string;
+  usuarioId?: number;
+  role?: string;
 }
+
+const tokenEstaAtivo = (empresa: Empresa, token: string): boolean => {
+  if (empresa.active_tokens && empresa.active_tokens.length > 0) {
+    return empresa.active_tokens.includes(token);
+  }
+
+  if (empresa.active_sessions && empresa.active_sessions.length > 0) {
+    return empresa.active_sessions.some((sessao: any) => sessao.token === token);
+  }
+
+  return true;
+};
 
 // Estender o tipo Request para incluir empresa
 declare global {
@@ -13,6 +27,8 @@ declare global {
     interface Request {
       empresa?: Empresa;
       empresaId?: number;
+      usuarioId?: number;
+      usuarioRole?: string;
     }
   }
 }
@@ -35,14 +51,12 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
     
     // 🔐 VERIFICAÇÃO MULTI-SESSÃO: Validar se é um dos tokens ativos
     // Se não há tokens ativos (retrocompatibilidade), permitir
-    if (empresa.active_tokens && empresa.active_tokens.length > 0) {
-      if (!empresa.active_tokens.includes(token)) {
-        console.log('❌ [AUTH] Token inválido - não está na lista de tokens ativos');
-        return res.status(401).json({ 
-          error: 'Sua sessão foi encerrada porque o limite de dispositivos foi atingido',
-          code: 'SESSION_REPLACED'
-        });
-      }
+    if (!tokenEstaAtivo(empresa, token)) {
+      console.log('❌ [AUTH] Token inválido - não está na lista de sessões ativas');
+      return res.status(401).json({ 
+        error: 'Sua sessão foi encerrada porque o limite de dispositivos foi atingido',
+        code: 'SESSION_REPLACED'
+      });
     }
     
     // Verificar se a assinatura está ativa
@@ -56,6 +70,8 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
     
     req.empresa = empresa;
     req.empresaId = empresa.id;
+    req.usuarioId = decoded.usuarioId;
+    req.usuarioRole = decoded.role || 'admin';
     
     next();
   } catch (error) {
@@ -82,9 +98,18 @@ export const authMiddlewareSemAssinatura = async (req: Request, res: Response, n
     if (!empresa) {
       return res.status(401).json({ error: 'Empresa não encontrada' });
     }
+
+    if (!tokenEstaAtivo(empresa, token)) {
+      return res.status(401).json({
+        error: 'Sua sessão foi encerrada porque o limite de dispositivos foi atingido',
+        code: 'SESSION_REPLACED'
+      });
+    }
     
     req.empresa = empresa;
     req.empresaId = empresa.id;
+    req.usuarioId = decoded.usuarioId;
+    req.usuarioRole = decoded.role || 'admin';
     
     next();
   } catch (error) {
@@ -111,6 +136,8 @@ export const authMiddlewareOptional = async (req: Request, res: Response, next: 
     if (empresa) {
       req.empresa = empresa;
       req.empresaId = empresa.id;
+      req.usuarioId = decoded.usuarioId;
+      req.usuarioRole = decoded.role || 'admin';
     }
     
     next();

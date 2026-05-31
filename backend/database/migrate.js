@@ -24,6 +24,18 @@ async function migrate() {
         email VARCHAR(255) NOT NULL UNIQUE,
         senha VARCHAR(255),
         ativo BOOLEAN DEFAULT FALSE,
+        prestador_nome VARCHAR(255),
+        prestador_telefone VARCHAR(30),
+        logo_url TEXT,
+        logo_cloudinary_id VARCHAR(255),
+        login_responsavel VARCHAR(80),
+        cpf_responsavel VARCHAR(14),
+        device_id VARCHAR(255),
+        active_token TEXT,
+        active_tokens JSONB DEFAULT '[]'::jsonb,
+        active_sessions JSONB DEFAULT '[]'::jsonb,
+        quantidade_licencas INTEGER DEFAULT 1,
+        ultimo_login TIMESTAMP,
         data_inicio_trial TIMESTAMP,
         data_expiracao TIMESTAMP,
         "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -31,6 +43,23 @@ async function migrate() {
       );
     `);
     console.log('✅ Tabela "empresas" criada');
+
+    await sequelize.query(`
+      ALTER TABLE empresas
+      ADD COLUMN IF NOT EXISTS cpf_responsavel VARCHAR(14),
+      ADD COLUMN IF NOT EXISTS prestador_nome VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS prestador_telefone VARCHAR(30),
+      ADD COLUMN IF NOT EXISTS logo_url TEXT,
+      ADD COLUMN IF NOT EXISTS logo_cloudinary_id VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS login_responsavel VARCHAR(80),
+      ADD COLUMN IF NOT EXISTS device_id VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS active_token TEXT,
+      ADD COLUMN IF NOT EXISTS active_tokens JSONB DEFAULT '[]'::jsonb,
+      ADD COLUMN IF NOT EXISTS active_sessions JSONB DEFAULT '[]'::jsonb,
+      ADD COLUMN IF NOT EXISTS quantidade_licencas INTEGER DEFAULT 1,
+      ADD COLUMN IF NOT EXISTS ultimo_login TIMESTAMP;
+    `);
+    console.log('✅ Campos de segurança/licenças garantidos em "empresas"');
     
     // Criar tabela de usuários
     await sequelize.query(`
@@ -38,7 +67,8 @@ async function migrate() {
         id SERIAL PRIMARY KEY,
         empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
         nome VARCHAR(255) NOT NULL,
-        email VARCHAR(255) NOT NULL,
+        login VARCHAR(80) NOT NULL,
+        email VARCHAR(255),
         senha VARCHAR(255) NOT NULL,
         role VARCHAR(20) DEFAULT 'operador' CHECK (role IN ('admin', 'operador', 'visualizador')),
         ativo BOOLEAN DEFAULT TRUE,
@@ -47,6 +77,28 @@ async function migrate() {
       );
     `);
     console.log('✅ Tabela "usuarios" criada');
+
+    await sequelize.query(`
+      ALTER TABLE usuarios
+      ADD COLUMN IF NOT EXISTS login VARCHAR(80),
+      ALTER COLUMN email DROP NOT NULL;
+
+      UPDATE usuarios
+      SET login = lower(COALESCE(login, email, 'usuario-' || id))
+      WHERE login IS NULL OR login = '';
+
+      ALTER TABLE usuarios
+      ALTER COLUMN login SET NOT NULL;
+
+      DROP INDEX IF EXISTS idx_usuarios_empresa_email_unique;
+
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_usuarios_empresa_login_unique
+      ON usuarios (empresa_id, lower(login));
+
+      CREATE INDEX IF NOT EXISTS idx_usuarios_empresa_ativo
+      ON usuarios (empresa_id, ativo);
+    `);
+    console.log('✅ Índices de usuários garantidos');
     
     // Criar tabela de sinistros
     await sequelize.query(`

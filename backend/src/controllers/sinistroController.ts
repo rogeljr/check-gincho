@@ -413,28 +413,32 @@ export const adicionarAssinatura = async (req: Request, res: Response) => {
     sinistro.assinatura_nome = nome;
     sinistro.assinatura_timestamp = new Date();
     
-    // Gerar PDF automaticamente COM SENHA DA PLACA e finalizar
+    // Gerar PDF automaticamente com senha do CPF do cliente e CNPJ da empresa.
     try {
       const empresa = await Empresa.findByPk(req.empresaId!);
       
-      if (empresa) {
-        const fotos = await (sinistro as any).getFotos?.();
-        
-        const pdfBuffer = await generatePDFClienteComSenha({
-          sinistro,
-          empresa,
-          fotos: fotos || []
-        });
-        
-        // Upload do PDF para Cloudinary
-        const pdfUrl = await uploadPDF(pdfBuffer, sinistro.id);
-        sinistro.pdf_url = pdfUrl;
-        sinistro.status = 'finalizado';
-        sinistro.finalizado_em = new Date();
+      if (!empresa) {
+        return res.status(500).json({ error: 'Empresa não encontrada para gerar o PDF protegido' });
       }
+
+      const fotos = await (sinistro as any).getFotos?.();
+      
+      const pdfBuffer = await generatePDFClienteComSenha({
+        sinistro,
+        empresa,
+        fotos: fotos || []
+      });
+      
+      // Upload do PDF para Cloudinary
+      const pdfUrl = await uploadPDF(pdfBuffer, sinistro.id);
+      sinistro.pdf_url = pdfUrl;
+      sinistro.status = 'finalizado';
+      sinistro.finalizado_em = new Date();
     } catch (pdfError) {
-      console.error('Erro ao gerar PDF após assinatura:', pdfError);
-      // Não bloqueia o fluxo se PDF falhar
+      console.error('Erro ao gerar PDF protegido após assinatura:', pdfError);
+      return res.status(500).json({
+        error: 'Não foi possível gerar o PDF protegido. O sinistro não foi finalizado.',
+      });
     }
     
     await sinistro.save();
@@ -558,7 +562,9 @@ export const finalizarSinistro = async (req: Request, res: Response) => {
       sinistro.pdf_url = pdfUrl;
     } catch (error) {
       console.error('Erro ao gerar PDF:', error);
-      // Continuar mesmo se falhar
+      return res.status(500).json({
+        error: 'Não foi possível gerar o PDF protegido. O sinistro não foi finalizado.',
+      });
     }
     
     await sinistro.save();

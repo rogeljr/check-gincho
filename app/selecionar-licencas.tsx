@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -7,22 +7,32 @@ import {
   Alert,
   ScrollView,
   ActivityIndicator,
-  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
 import pagamentoService from '../services/pagamento.service';
 import { Ionicons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function SelecionarLicencasScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { empresa, updateEmpresa } = useAuth();
   const [quantidadeSelecionada, setQuantidadeSelecionada] = useState(1);
   const [loading, setLoading] = useState(false);
 
-  const precoUnitario = 5.00; // R$ 5 por licença (ajuste conforme necessário)
+  const licencasAtuais = empresa?.quantidade_licencas || 1;
+  const diasRestantes = empresa?.diasRestantes || 0;
+  const assinaturaAtiva = !!empresa?.assinaturaAtiva && diasRestantes > 0;
+  const precoUnitario = 5.00; // R$ 5 por licença
   const valorTotal = precoUnitario * quantidadeSelecionada;
+  const isRenovacaoMesmaQuantidade = quantidadeSelecionada === licencasAtuais;
+  const acaoPagamento = isRenovacaoMesmaQuantidade ? 'Renovar' : 'Alterar';
+
+  useEffect(() => {
+    setQuantidadeSelecionada(licencasAtuais);
+  }, [licencasAtuais]);
 
   const handleSelecionarLicencas = async () => {
     if (!quantidadeSelecionada || quantidadeSelecionada < 1 || quantidadeSelecionada > 10) {
@@ -31,21 +41,11 @@ export default function SelecionarLicencasScreen() {
     }
 
     // Verificar se já tem assinatura ativa
-    if (empresa?.assinaturaAtiva && empresa?.diasRestantes && empresa.diasRestantes > 7) {
+    if (assinaturaAtiva && diasRestantes > 7) {
       Alert.alert(
         'Assinatura Ativa',
-        `Você ainda tem ${empresa.diasRestantes} dias restantes da sua assinatura atual.\n\nSó é possível alterar a quantidade de licenças nos últimos 7 dias antes da renovação, para evitar cobranças duplicadas.`,
+        `Você ainda tem ${diasRestantes} dias restantes da sua assinatura atual.\n\nSó é possível alterar ou renovar licenças nos últimos 7 dias antes da renovação, para evitar cobranças duplicadas.`,
         [{ text: 'Entendi' }]
-      );
-      return;
-    }
-
-    // Verificar se está tentando usar a mesma quantidade atual
-    if (quantidadeSelecionada === (empresa?.quantidade_licencas || 1)) {
-      Alert.alert(
-        'Mesma Quantidade',
-        `Você já possui ${quantidadeSelecionada} ${quantidadeSelecionada === 1 ? 'licença' : 'licenças'} ativa(s).\n\nSelecione uma quantidade diferente para alterar seu plano.`,
-        [{ text: 'OK' }]
       );
       return;
     }
@@ -70,7 +70,7 @@ export default function SelecionarLicencasScreen() {
         
         Alert.alert(
           'Pagamento Enviado',
-          'Sua solicitação de licenças foi enviada para processamento. Você será redirecionado.',
+          'Sua solicitação foi enviada para processamento. Você será redirecionado.',
           [
             {
               text: 'OK',
@@ -95,7 +95,7 @@ export default function SelecionarLicencasScreen() {
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: Math.max(insets.top, 12) + 12 }]}>
         <TouchableOpacity
           onPress={() => router.back()}
           style={styles.backButton}
@@ -110,17 +110,17 @@ export default function SelecionarLicencasScreen() {
       <View style={styles.empresaCard}>
         <Text style={styles.empresaNome}>{empresa?.nome}</Text>
         <Text style={styles.empresaInfo}>
-          Licenças Ativas: <Text style={styles.licencasAtivas}>{empresa?.quantidade_licencas || 1}</Text>
+          Licenças Ativas: <Text style={styles.licencasAtivas}>{licencasAtuais}</Text>
         </Text>
         <Text style={styles.empresaInfo}>
-          Dias Restantes: <Text style={styles.licencasAtivas}>{empresa?.diasRestantes || 0}</Text>
+          Dias Restantes: <Text style={styles.licencasAtivas}>{diasRestantes}</Text>
         </Text>
         
         {/* Aviso se não pode alterar licenças ainda */}
-        {empresa?.diasRestantes && empresa.diasRestantes > 7 && (
+        {assinaturaAtiva && diasRestantes > 7 && (
           <View style={styles.avisoCard}>
             <Text style={styles.avisoTexto}>
-              ⚠️ Você só poderá alterar a quantidade de licenças nos últimos 7 dias antes da renovação (faltam {empresa.diasRestantes - 7} dias).
+              Você só poderá alterar ou renovar licenças nos últimos 7 dias antes da renovação (faltam {diasRestantes - 7} dias).
             </Text>
           </View>
         )}
@@ -229,6 +229,10 @@ export default function SelecionarLicencasScreen() {
           <Text style={styles.resumoValor}>{quantidadeSelecionada}</Text>
         </View>
         <View style={styles.resumoRow}>
+          <Text style={styles.resumoLabel}>Ação:</Text>
+          <Text style={styles.resumoValor}>{acaoPagamento}</Text>
+        </View>
+        <View style={styles.resumoRow}>
           <Text style={styles.resumoLabel}>Valor Total:</Text>
           <Text style={styles.resumoValorTotal}>R$ {valorTotal.toFixed(2)}</Text>
         </View>
@@ -249,7 +253,7 @@ export default function SelecionarLicencasScreen() {
           <>
             <Ionicons name="card" size={20} color="#FFF" />
             <Text style={styles.textoBotaoProsseguir}>
-              Ir para Pagamento
+              {acaoPagamento} no Pagamento
             </Text>
           </>
         )}
@@ -264,7 +268,7 @@ export default function SelecionarLicencasScreen() {
         <Text style={styles.textoBotaoCancelar}>Cancelar</Text>
       </TouchableOpacity>
 
-      <View style={{ height: 30 }} />
+      <View style={{ height: Math.max(insets.bottom, 24) + 24 }} />
     </ScrollView>
   );
 }

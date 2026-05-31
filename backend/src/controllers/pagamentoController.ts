@@ -41,10 +41,33 @@ const getCheckoutUrl = (preference: any) => {
     : preference.init_point || preference.sandbox_init_point;
 };
 
+const ensureMercadoPagoConfigured = () => {
+  const token = process.env.MERCADO_PAGO_ACCESS_TOKEN || '';
+
+  if (!token) {
+    throw new Error('MERCADO_PAGO_ACCESS_TOKEN não configurado no backend');
+  }
+
+  if (!token.startsWith('TEST-') && !token.startsWith('APP_USR-')) {
+    throw new Error('MERCADO_PAGO_ACCESS_TOKEN inválido. Use Access Token TEST- no sandbox ou APP_USR- em produção.');
+  }
+};
+
+const getPagamentoErrorResponse = (error: any) => {
+  const mercadoPagoMessage = error?.cause?.[0]?.description || error?.cause?.message || error?.message;
+  const isProduction = process.env.NODE_ENV === 'production';
+
+  return {
+    error: 'Erro ao criar preferência de pagamento',
+    ...(!isProduction && mercadoPagoMessage ? { details: mercadoPagoMessage } : {})
+  };
+};
+
 // Criar preferência de pagamento (PIX ou Cartão)
 export const criarPreferencia = async (req: Request, res: Response) => {
   try {
     const empresa = req.empresa!;
+    ensureMercadoPagoConfigured();
     console.log('📝 [PAGAMENTO] Iniciando criarPreferencia para empresa:', empresa.id);
     
     // Valor: R$5 por mês (teste)
@@ -108,7 +131,7 @@ export const criarPreferencia = async (req: Request, res: Response) => {
       response: error.response?.data || error.response,
       stack: error.stack
     });
-    return res.status(500).json({ error: 'Erro ao criar preferência de pagamento' });
+    return res.status(500).json(getPagamentoErrorResponse(error));
   }
 };
 
@@ -116,6 +139,7 @@ export const criarPreferencia = async (req: Request, res: Response) => {
 export const selecionarLicencas = async (req: Request, res: Response) => {
   try {
     const empresa = req.empresa!;
+    ensureMercadoPagoConfigured();
     const { quantidade_licencas } = req.body;
 
     console.log('📝 [PAGAMENTO] Selecionando licenças para empresa:', empresa.id, 'Quantidade:', quantidade_licencas);
@@ -129,20 +153,12 @@ export const selecionarLicencas = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'quantidade_licencas deve estar entre 1 e 10' });
     }
 
-    // Validar se já tem a mesma quantidade
-    if (empresa.quantidade_licencas === quantidade_licencas) {
-      console.log('⚠️ [PAGAMENTO] Tentativa de pagar pela mesma quantidade já ativa');
-      return res.status(400).json({ 
-        error: `Você já possui ${quantidade_licencas} ${quantidade_licencas === 1 ? 'licença ativa' : 'licenças ativas'}. Selecione uma quantidade diferente.` 
-      });
-    }
-
     // Verificar se tem assinatura ativa com mais de 7 dias restantes
     const diasRestantes = empresa.diasRestantes();
     if (diasRestantes > 7) {
       console.log('⚠️ [PAGAMENTO] Assinatura ativa com muitos dias restantes:', diasRestantes);
       return res.status(400).json({ 
-        error: `Você ainda tem ${diasRestantes} dias restantes. Só é possível alterar licenças nos últimos 7 dias antes da renovação.` 
+        error: `Você ainda tem ${diasRestantes} dias restantes. Só é possível alterar ou renovar licenças nos últimos 7 dias antes da renovação.` 
       });
     }
 
@@ -215,7 +231,7 @@ export const selecionarLicencas = async (req: Request, res: Response) => {
       response: error.response?.data || error.response,
       stack: error.stack
     });
-    return res.status(500).json({ error: 'Erro ao processar seleção de licenças' });
+    return res.status(500).json(getPagamentoErrorResponse(error));
   }
 };
 

@@ -13,9 +13,11 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import authService from '../services/auth.service';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function CadastroEmpresaScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   
   const [formData, setFormData] = useState({
     nome: '',
@@ -177,7 +179,15 @@ export default function CadastroEmpresaScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
     >
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContainer,
+          {
+            paddingTop: Math.max(insets.top, 16),
+            paddingBottom: Math.max(insets.bottom, 16),
+          }
+        ]}
+      >
         <View style={styles.content}>
           <Text style={styles.title}>Cadastrar Empresa</Text>
           <Text style={styles.subtitle}>

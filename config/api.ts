@@ -15,6 +15,9 @@ export const ENDPOINTS = {
   DEFINIR_SENHA: '/auth/definir-senha',
   LOGIN: '/auth/login',
   GET_EMPRESA: '/auth/empresa',
+  ATUALIZAR_PRESTADOR: '/auth/empresa/prestador',
+  USUARIOS: '/auth/usuarios',
+  USUARIO_BY_ID: (id: number) => `/auth/usuarios/${id}`,
   
   // Sinistros
   SINISTROS: '/sinistros',

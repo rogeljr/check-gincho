@@ -13,6 +13,7 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import apiService from '../../services/api.service';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface Sinistro {
   id: number;
@@ -31,6 +32,7 @@ interface Sinistro {
 
 export default function SinistroDetalheScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams();
   
   const [sinistro, setSinistro] = useState<Sinistro | null>(null);
@@ -110,7 +112,7 @@ export default function SinistroDetalheScreen() {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
+      <View style={[styles.loadingContainer, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
         <ActivityIndicator size="large" color="#0066CC" />
         <Text style={styles.loadingText}>Carregando sinistro...</Text>
       </View>
@@ -119,7 +121,7 @@ export default function SinistroDetalheScreen() {
 
   if (!sinistro) {
     return (
-      <View style={styles.errorContainer}>
+      <View style={[styles.errorContainer, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
         <MaterialIcons name="error-outline" size={64} color="#CC0000" />
         <Text style={styles.errorText}>Sinistro não encontrado</Text>
         <TouchableOpacity
@@ -141,8 +143,11 @@ export default function SinistroDetalheScreen() {
   });
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.header}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 16) }}
+    >
+      <View style={[styles.header, { paddingTop: Math.max(insets.top, 12) + 12 }]}>
         <TouchableOpacity onPress={() => router.back()}>
           <MaterialIcons name="arrow-back" size={24} color="#0066CC" />
         </TouchableOpacity>

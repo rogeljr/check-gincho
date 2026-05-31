@@ -249,7 +249,13 @@ const FotosSinistro = () => {
   };
 
   return (
-    <View style={[styles.container, { paddingBottom: Math.max(insets.bottom, 24) + 16 }]}>
+    <View style={[
+      styles.container,
+      {
+        paddingTop: Math.max(insets.top, 16) + 16,
+        paddingBottom: Math.max(insets.bottom, 24) + 16,
+      }
+    ]}>
       <Text style={styles.title}>Fotos do Sinistro</Text>
       <Text style={styles.subtitle}>Total: {fotos.length} foto(s)</Text>
 
@@ -407,7 +413,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 16,
-    paddingTop: 48,
+    paddingTop: 16,
     backgroundColor: '#f5f5f5',
   },
   title: {

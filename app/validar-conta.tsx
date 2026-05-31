@@ -2,9 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import authService from '../services/auth.service';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function ValidarContaScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { token } = useLocalSearchParams<{ token: string }>();
   const [loading, setLoading] = useState(true);
   const [success, setSuccess] = useState(false);
@@ -38,7 +40,7 @@ export default function ValidarContaScreen() {
 
   if (loading) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { paddingTop: Math.max(insets.top, 20) + 20, paddingBottom: Math.max(insets.bottom, 20) }]}>
         <ActivityIndicator size="large" color="#4CAF50" />
         <Text style={styles.loadingText}>Validando sua conta...</Text>
       </View>
@@ -47,7 +49,10 @@ export default function ValidarContaScreen() {
 
   if (success) {
     return (
-      <ScrollView style={styles.container}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={{ paddingTop: Math.max(insets.top, 20), paddingBottom: Math.max(insets.bottom, 20) }}
+      >
         <View style={styles.successContainer}>
           <Text style={styles.successIcon}>✓</Text>
           <Text style={styles.successTitle}>Conta Validada com Sucesso!</Text>
@@ -76,7 +81,10 @@ export default function ValidarContaScreen() {
   }
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={{ paddingTop: Math.max(insets.top, 20), paddingBottom: Math.max(insets.bottom, 20) }}
+    >
       <View style={styles.errorContainer}>
         <Text style={styles.errorIcon}>✗</Text>
         <Text style={styles.errorTitle}>Erro ao Validar Conta</Text>

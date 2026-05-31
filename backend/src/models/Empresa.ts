@@ -9,10 +9,22 @@ interface EmpresaAttributes {
   email: string;
   senha?: string;
   ativo: boolean;
+  prestador_nome?: string;
+  prestador_telefone?: string;
+  logo_url?: string;
+  logo_cloudinary_id?: string;
+  login_responsavel?: string;
   cpf_responsavel?: string;
   device_id?: string;
   active_token?: string;
   active_tokens?: string[]; // Array de tokens ativos para múltiplas licenças
+  active_sessions?: Array<{
+    token: string;
+    device_id: string;
+    usuario_id?: number;
+    role?: string;
+    ultimo_login: string;
+  }>;
   ultimo_login?: Date;
   quantidade_licencas: number; // Número de dispositivos simultâneos permitidos
   data_inicio_trial?: Date;
@@ -31,10 +43,22 @@ class Empresa extends Model<EmpresaAttributes, EmpresaCreationAttributes> implem
   public email!: string;
   public senha?: string;
   public ativo!: boolean;
+  public prestador_nome?: string;
+  public prestador_telefone?: string;
+  public logo_url?: string;
+  public logo_cloudinary_id?: string;
+  public login_responsavel?: string;
   public cpf_responsavel?: string;
   public device_id?: string;
   public active_token?: string;
   public active_tokens?: string[];
+  public active_sessions?: Array<{
+    token: string;
+    device_id: string;
+    usuario_id?: number;
+    role?: string;
+    ultimo_login: string;
+  }>;
   public ultimo_login?: Date;
   public quantidade_licencas!: number;
   public data_inicio_trial?: Date;
@@ -117,6 +141,26 @@ Empresa.init(
       type: DataTypes.BOOLEAN,
       defaultValue: false
     },
+    prestador_nome: {
+      type: DataTypes.STRING(255),
+      allowNull: true
+    },
+    prestador_telefone: {
+      type: DataTypes.STRING(30),
+      allowNull: true
+    },
+    logo_url: {
+      type: DataTypes.TEXT,
+      allowNull: true
+    },
+    logo_cloudinary_id: {
+      type: DataTypes.STRING(255),
+      allowNull: true
+    },
+    login_responsavel: {
+      type: DataTypes.STRING(80),
+      allowNull: true
+    },
     cpf_responsavel: {
       type: DataTypes.STRING(14),
       allowNull: true
@@ -130,6 +174,11 @@ Empresa.init(
       allowNull: true
     },
     active_tokens: {
+      type: DataTypes.JSONB,
+      defaultValue: [],
+      allowNull: false
+    },
+    active_sessions: {
       type: DataTypes.JSONB,
       defaultValue: [],
       allowNull: false

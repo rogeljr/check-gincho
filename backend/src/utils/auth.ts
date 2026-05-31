@@ -14,9 +14,9 @@ export const comparePassword = async (password: string, hash: string): Promise<b
 };
 
 // Gerar JWT
-export const generateToken = (empresaId: number, codigo: string): string => {
+export const generateToken = (empresaId: number, codigo: string, usuarioId?: number, role: string = 'admin'): string => {
   return jwt.sign(
-    { empresaId, codigo },
+    { empresaId, codigo, usuarioId, role },
     process.env.JWT_SECRET!,
     { expiresIn: '30d' } // Token válido por 30 dias
   );

@@ -18,6 +18,11 @@ router.post('/login', authController.login);
 router.post('/logout', authMiddleware, authController.logout);
 router.get('/empresa', authMiddleware, authController.getEmpresa);
 router.put('/empresa', authMiddleware, authController.atualizarEmpresa);
+router.put('/empresa/prestador', authMiddleware, authController.atualizarPrestador);
+router.get('/usuarios', authMiddleware, authController.listarUsuarios);
+router.post('/usuarios', authMiddleware, authController.criarUsuario);
+router.put('/usuarios/:id', authMiddleware, authController.atualizarUsuario);
+router.delete('/usuarios/:id', authMiddleware, authController.removerUsuario);
 
 // Rota de desenvolvimento - resetar trial para X dias atrás
 if (process.env.NODE_ENV === 'development') {

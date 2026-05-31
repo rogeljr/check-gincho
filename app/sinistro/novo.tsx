@@ -139,6 +139,7 @@ export default function NovoSinistroScreen() {
 
         setServidorId(Number(id));
         const local = await databaseService.buscarSinistroPorServidorId(Number(id));
+        const sinistroFonte = local || data;
         if (local?.id) {
           setLocalId(local.id);
           setPdfLocalUrl(local.pdf_local_url || null);
@@ -154,27 +155,33 @@ export default function NovoSinistroScreen() {
           placa_veiculo: data.placa_veiculo || '',
           modelo_veiculo: data.modelo_veiculo || '',
           cor_veiculo: data.cor_veiculo || '',
-          origem_endereco: data.origem_endereco || '',
-          destino_endereco: data.destino_endereco || '',
+          origem_endereco: sinistroFonte.origem_endereco || '',
+          destino_endereco: sinistroFonte.destino_endereco || '',
           observacoes: data.observacoes || '',
         });
 
-        if (origemLatitude !== undefined && origemLatitude !== null && origemLongitude !== undefined && origemLongitude !== null) {
+        const origemLatFinal = local?.origem_latitude ?? origemLatitude;
+        const origemLonFinal = local?.origem_longitude ?? origemLongitude;
+        const destinoLatFinal = local?.destino_latitude ?? destinoLatitude;
+        const destinoLonFinal = local?.destino_longitude ?? destinoLongitude;
+
+        if (origemLatFinal !== undefined && origemLatFinal !== null && origemLonFinal !== undefined && origemLonFinal !== null) {
           setOrigemCoords({
-            latitude: Number(origemLatitude),
-            longitude: Number(origemLongitude),
+            latitude: Number(origemLatFinal),
+            longitude: Number(origemLonFinal),
           });
         }
 
-        if (destinoLatitude !== undefined && destinoLatitude !== null && destinoLongitude !== undefined && destinoLongitude !== null) {
+        if (destinoLatFinal !== undefined && destinoLatFinal !== null && destinoLonFinal !== undefined && destinoLonFinal !== null) {
           setDestinoCoords({
-            latitude: Number(destinoLatitude),
-            longitude: Number(destinoLongitude),
+            latitude: Number(destinoLatFinal),
+            longitude: Number(destinoLonFinal),
           });
         }
 
-        if (data.quilometragem) {
-          setQuilometragem(Number(data.quilometragem));
+        const quilometragemFinal = local?.quilometragem ?? data.quilometragem;
+        if (quilometragemFinal) {
+          setQuilometragem(Number(quilometragemFinal));
         }
     } catch (error) {
       console.error('Erro ao continuar carregamento:', error);
@@ -367,17 +374,39 @@ export default function NovoSinistroScreen() {
       if (tipo === 'origem') {
         setOrigemCoords(coords);
         handleChange('origem_endereco', enderecoFormatado);
+        if (localId) {
+          await databaseService.atualizarSinistro(localId, {
+            origem_latitude: coords.latitude,
+            origem_longitude: coords.longitude,
+            origem_endereco: enderecoFormatado,
+            sincronizado: false,
+          });
+        }
       } else {
         setDestinoCoords(coords);
         handleChange('destino_endereco', enderecoFormatado);
+        if (localId) {
+          await databaseService.atualizarSinistro(localId, {
+            destino_latitude: coords.latitude,
+            destino_longitude: coords.longitude,
+            destino_endereco: enderecoFormatado,
+            sincronizado: false,
+          });
+        }
       }
       
       if (tipo === 'destino' && origemCoords) {
         const km = calcularDistancia(origemCoords, coords);
         setQuilometragem(km);
+        if (localId) {
+          await databaseService.atualizarSinistro(localId, { quilometragem: km, sincronizado: false });
+        }
       } else if (tipo === 'origem' && destinoCoords) {
         const km = calcularDistancia(coords, destinoCoords);
         setQuilometragem(km);
+        if (localId) {
+          await databaseService.atualizarSinistro(localId, { quilometragem: km, sincronizado: false });
+        }
       }
       
       // Se capturou destino, abre modal de assinatura
@@ -496,26 +525,14 @@ export default function NovoSinistroScreen() {
       return;
     }
 
-    Alert.alert(
-      'Comprovante local sem senha',
-      'Este arquivo é gerado no celular para conferência offline e não possui senha. O PDF protegido por CPF/CNPJ é gerado pelo servidor após sincronizar/finalizar o sinistro.',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Abrir',
-          onPress: async () => {
-            try {
-              await Sharing.shareAsync(pdfLocalUrl, {
-                mimeType: 'application/pdf',
-              });
-            } catch (error) {
-              console.error('Erro ao abrir PDF:', error);
-              Alert.alert('Erro', 'Não foi possível abrir o PDF local');
-            }
-          }
-        }
-      ]
-    );
+    try {
+      await Sharing.shareAsync(pdfLocalUrl, {
+        mimeType: 'application/pdf',
+      });
+    } catch (error) {
+      console.error('Erro ao abrir PDF:', error);
+      Alert.alert('Erro', 'Não foi possível abrir o PDF local');
+    }
   };
   
   const validateForm = (): boolean => {
@@ -561,6 +578,11 @@ export default function NovoSinistroScreen() {
     assinaturaDataUri?: string,
     prestadorInfo?: { nome?: string; empresa?: string; telefone?: string; logo?: string }
   ) => {
+    const usarModeloProfissional = true;
+    if (usarModeloProfissional) {
+      return gerarHtmlPdfProfissional(sinistro, fotosBase64, assinaturaDataUri, prestadorInfo);
+    }
+
     // Organizar fotos em grid
     const fotosHtml = fotosBase64
       .map((foto) => `
@@ -571,7 +593,7 @@ export default function NovoSinistroScreen() {
       .join('');
 
     const logoHtml = prestadorInfo?.logo
-      ? `<img src="${prestadorInfo.logo}" style="max-height: 60px; max-width: 150px; margin-right: 20px;" />`
+      ? `<img src="${prestadorInfo?.logo}" style="max-height: 60px; max-width: 150px; margin-right: 20px;" />`
       : '';
 
     const prestadorHtml = prestadorInfo?.nome || prestadorInfo?.empresa
@@ -579,9 +601,9 @@ export default function NovoSinistroScreen() {
         <div style="display: flex; align-items: center; padding-bottom: 20px; border-bottom: 2px solid #1a1a1a; margin-bottom: 20px;">
           ${logoHtml}
           <div>
-            ${prestadorInfo?.empresa ? `<div style="font-size: 16px; font-weight: bold; color: #1a1a1a;">${prestadorInfo.empresa}</div>` : ''}
-            ${prestadorInfo?.nome ? `<div style="font-size: 14px; color: #555;">${prestadorInfo.nome}</div>` : ''}
-            ${prestadorInfo?.telefone ? `<div style="font-size: 12px; color: #888;">${prestadorInfo.telefone}</div>` : ''}
+            ${prestadorInfo?.empresa ? `<div style="font-size: 16px; font-weight: bold; color: #1a1a1a;">${prestadorInfo?.empresa}</div>` : ''}
+            ${prestadorInfo?.nome ? `<div style="font-size: 14px; color: #555;">${prestadorInfo?.nome}</div>` : ''}
+            ${prestadorInfo?.telefone ? `<div style="font-size: 12px; color: #888;">${prestadorInfo?.telefone}</div>` : ''}
           </div>
         </div>
       `
@@ -609,6 +631,7 @@ export default function NovoSinistroScreen() {
         </div>
       `
       : '<p style="color: #999; font-style: italic;">Sem assinatura</p>';
+    void assinaturaHtml;
 
     return `
       <!DOCTYPE html>
@@ -857,6 +880,337 @@ export default function NovoSinistroScreen() {
     `;
   };
 
+  function gerarHtmlPdfProfissional(
+    sinistro: Omit<SinistroLocal, 'id'>,
+    fotosBase64: string[],
+    assinaturaDataUri?: string,
+    prestadorInfo?: { nome?: string; empresa?: string; telefone?: string; logo?: string }
+  ) {
+    const escapeHtml = (value?: string | number) =>
+      String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+
+    const formatDateTime = (value?: string) => {
+      const date = value ? new Date(value) : new Date();
+      return date.toLocaleDateString('pt-BR', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    };
+
+    const formatCpf = (value?: string) => {
+      const numbers = (value || '').replace(/\D/g, '');
+      if (numbers.length !== 11) return value || '-';
+      return `${numbers.slice(0, 3)}.${numbers.slice(3, 6)}.${numbers.slice(6, 9)}-${numbers.slice(9)}`;
+    };
+
+    const formatPhone = (value?: string) => {
+      const numbers = (value || '').replace(/\D/g, '');
+      if (numbers.length === 11) return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7)}`;
+      if (numbers.length === 10) return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 6)}-${numbers.slice(6)}`;
+      return value || '-';
+    };
+
+    const empresaNome = prestadorInfo?.empresa || 'Check Guincho';
+    const responsavel = prestadorInfo?.nome || '-';
+    const dataAtendimento = formatDateTime(sinistro.createdAt);
+    const dataGeracao = formatDateTime(new Date().toISOString());
+
+    const cell = (label: string, value?: string | number, span = 1) => `
+      <td colspan="${span}">
+        <span class="cell-label">${escapeHtml(label)}</span>
+        <span class="cell-value">${value !== undefined && value !== null && value !== '' ? escapeHtml(value) : '-'}</span>
+      </td>
+    `;
+
+    const sectionTitle = (title: string) => `
+      <tr><th class="section-title" colspan="4">${escapeHtml(title)}</th></tr>
+    `;
+
+    const logoHtml = prestadorInfo?.logo
+      ? `<div class="logo-box"><img src="${prestadorInfo.logo}" /></div>`
+      : `<div class="logo-box logo-placeholder">Logo</div>`;
+
+    const assinaturaHtml = assinaturaDataUri
+      ? `<img src="${assinaturaDataUri}" />`
+      : '<span>Sem assinatura</span>';
+
+    const fotosHtml = fotosBase64
+      .map((foto, index) => `
+        <div class="photo-card">
+          <div class="photo-frame"><img src="${foto}" /></div>
+          <div class="photo-caption">Foto ${index + 1}</div>
+        </div>
+      `)
+      .join('');
+
+    return `
+      <!DOCTYPE html>
+      <html lang="pt-BR">
+        <head>
+          <meta charset="UTF-8" />
+          <style>
+            @page { size: A4; margin: 12mm; }
+            * { box-sizing: border-box; }
+            body {
+              margin: 0;
+              color: #111;
+              background: #fff;
+              font-family: Arial, Helvetica, sans-serif;
+              font-size: 10px;
+              line-height: 1.25;
+            }
+            .topbar {
+              display: table;
+              width: 100%;
+              margin-bottom: 8px;
+            }
+            .brand-logo,
+            .brand-title,
+            .brand-meta {
+              display: table-cell;
+              vertical-align: middle;
+            }
+            .brand-logo { width: 120px; }
+            .brand-title { text-align: center; }
+            .brand-meta {
+              width: 145px;
+              text-align: right;
+              font-size: 9px;
+              color: #333;
+            }
+            .logo-box {
+              width: 96px;
+              height: 58px;
+              border: 1px solid #222;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              background: #fff;
+              padding: 4px;
+            }
+            .logo-box img {
+              max-width: 100%;
+              max-height: 100%;
+              width: 100%;
+              height: 100%;
+              object-fit: contain;
+              object-position: center;
+            }
+            .logo-placeholder {
+              color: #777;
+              font-size: 10px;
+              text-transform: uppercase;
+            }
+            .company-name {
+              font-size: 18px;
+              font-weight: 700;
+              margin-bottom: 3px;
+            }
+            .document-title {
+              font-size: 13px;
+              font-weight: 700;
+              text-transform: uppercase;
+            }
+            table.checklist {
+              width: 100%;
+              border-collapse: collapse;
+              table-layout: fixed;
+              margin-bottom: 14px;
+            }
+            .checklist th,
+            .checklist td {
+              border: 1px solid #222;
+              padding: 4px 5px;
+              vertical-align: top;
+              min-height: 20px;
+              word-break: break-word;
+            }
+            .section-title {
+              background: #f1f3f5;
+              text-align: center;
+              font-size: 11px;
+              font-weight: 700;
+              padding: 5px;
+            }
+            .cell-label {
+              font-weight: 700;
+              margin-right: 4px;
+            }
+            .agreement {
+              margin: 18px 0 12px;
+              text-align: center;
+              font-size: 10px;
+            }
+            .signature-area {
+              margin: 8px auto 24px;
+              width: 60%;
+              text-align: center;
+              page-break-inside: avoid;
+            }
+            .signature-box {
+              height: 78px;
+              display: flex;
+              align-items: flex-end;
+              justify-content: center;
+              padding-bottom: 4px;
+            }
+            .signature-box img {
+              max-width: 260px;
+              max-height: 72px;
+              object-fit: contain;
+            }
+            .signature-line {
+              border-top: 1px solid #111;
+              padding-top: 4px;
+              font-weight: 700;
+            }
+            .photos-title {
+              text-align: center;
+              font-weight: 700;
+              font-size: 12px;
+              margin: 12px 0 10px;
+            }
+            .photos-grid {
+              width: 100%;
+              font-size: 0;
+            }
+            .photo-card {
+              display: inline-block;
+              width: 31.6%;
+              margin: 0 0.85% 14px;
+              vertical-align: top;
+              page-break-inside: avoid;
+              text-align: center;
+              font-size: 10px;
+            }
+            .photo-frame {
+              width: 100%;
+              height: 170px;
+              border: 1px solid #c8c8c8;
+              background: #fff;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              overflow: hidden;
+            }
+            .photo-frame img {
+              max-width: 100%;
+              max-height: 100%;
+              width: 100%;
+              height: 100%;
+              object-fit: contain;
+              image-orientation: from-image;
+            }
+            .photo-caption {
+              margin-top: 5px;
+              font-size: 10px;
+            }
+            .no-photos {
+              border: 1px solid #222;
+              padding: 12px;
+              text-align: center;
+              color: #555;
+            }
+            .footer {
+              margin-top: 24px;
+              border-top: 1px solid #ddd;
+              padding-top: 8px;
+              display: flex;
+              justify-content: space-between;
+              color: #666;
+              font-size: 9px;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="topbar">
+            <div class="brand-logo">${logoHtml}</div>
+            <div class="brand-title">
+              <div class="company-name">${escapeHtml(empresaNome)}</div>
+              <div class="document-title">Checklist de Atendimento</div>
+            </div>
+            <div class="brand-meta">
+              <div><strong>Cód:</strong> ${escapeHtml(sinistro.numero_sinistro || '-')}</div>
+              <div><strong>Data:</strong> ${escapeHtml(dataAtendimento)}</div>
+            </div>
+          </div>
+
+          <table class="checklist">
+            ${sectionTitle('Dados da Empresa')}
+            <tr>
+              ${cell('Empresa:', empresaNome, 2)}
+              ${cell('Responsável:', responsavel, 1)}
+              ${cell('Telefone:', formatPhone(prestadorInfo?.telefone), 1)}
+            </tr>
+
+            ${sectionTitle('Dados do Cliente')}
+            <tr>
+              ${cell('Cliente:', sinistro.nome_cliente, 2)}
+              ${cell('CPF:', formatCpf(sinistro.cpf_cliente), 1)}
+              ${cell('Telefone:', formatPhone(sinistro.telefone_cliente), 1)}
+            </tr>
+
+            ${sectionTitle('Informações do Veículo')}
+            <tr>
+              ${cell('Placa:', sinistro.placa_veiculo, 1)}
+              ${cell('Modelo:', sinistro.modelo_veiculo, 1)}
+              ${cell('Cor:', sinistro.cor_veiculo, 1)}
+              ${cell('Tipo:', sinistro.tipo_atendimento || 'Guincho', 1)}
+            </tr>
+
+            ${sectionTitle('Dados da Coleta')}
+            <tr>${cell('Origem:', sinistro.origem_endereco, 4)}</tr>
+            <tr>
+              ${cell('Latitude:', sinistro.origem_latitude?.toFixed?.(6) || sinistro.origem_latitude, 1)}
+              ${cell('Longitude:', sinistro.origem_longitude?.toFixed?.(6) || sinistro.origem_longitude, 1)}
+              ${cell('Data:', dataAtendimento, 2)}
+            </tr>
+
+            ${sectionTitle('Dados da Entrega')}
+            <tr>${cell('Destino:', sinistro.destino_endereco, 4)}</tr>
+            <tr>
+              ${cell('Latitude:', sinistro.destino_latitude?.toFixed?.(6) || sinistro.destino_latitude, 1)}
+              ${cell('Longitude:', sinistro.destino_longitude?.toFixed?.(6) || sinistro.destino_longitude, 1)}
+              ${cell('KM rodado:', sinistro.quilometragem ? `${sinistro.quilometragem} km` : '-', 2)}
+            </tr>
+
+            ${sectionTitle('Observações')}
+            <tr>${cell('OBS:', sinistro.observacoes || '-', 4)}</tr>
+          </table>
+
+          <div class="agreement">
+            Eu, ${escapeHtml(sinistro.nome_cliente || 'cliente')}, concordo com as informações registradas neste checklist.
+          </div>
+
+          <div class="signature-area">
+            <div class="signature-box">${assinaturaHtml}</div>
+            <div class="signature-line">Assinatura do Cliente</div>
+          </div>
+
+          <div class="photos-title">Galeria de Fotos</div>
+          ${fotosBase64.length > 0
+            ? `<div class="photos-grid">${fotosHtml}</div>`
+            : '<div class="no-photos">Nenhuma foto registrada</div>'
+          }
+
+          <div class="footer">
+            <span>Checklist gerado pelo Check Guincho</span>
+            <span>${escapeHtml(empresaNome)}</span>
+            <span>${escapeHtml(dataGeracao)}</span>
+          </div>
+        </body>
+      </html>
+    `;
+  }
+
   const gerarPdfLocal = async (sinistro: Omit<SinistroLocal, 'id'>, sinistroLocalId?: number, assinaturaOverride?: string) => {
     const fotos: string[] = [];
 
@@ -1067,7 +1421,7 @@ export default function NovoSinistroScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
     >
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: Math.max(insets.top, 12) + 12 }]}>
         <Text style={styles.title}>Novo Sinistro</Text>
         <View style={[styles.statusBadge, { backgroundColor: isOnline ? '#27AE60' : '#E74C3C' }]}>
           <Text style={styles.statusText}>{isOnline ? '● Online' : '● Offline'}</Text>
@@ -1314,7 +1668,7 @@ export default function NovoSinistroScreen() {
         onRequestClose={fecharModalAssinatura}
       >
         <View style={styles.assinaturaContainer}>
-          <View style={styles.assinaturaHeader}>
+          <View style={[styles.assinaturaHeader, { paddingTop: Math.max(insets.top, 12) + 12 }]}>
             <Text style={styles.assinaturaTitle}>Assinatura do Cliente</Text>
             <Text style={styles.assinaturaSubtitle}>Por favor, peça ao cliente para assinar abaixo</Text>
           </View>
@@ -1367,7 +1721,7 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#fff',
     padding: 20,
-    paddingTop: 60,
+    paddingTop: 20,
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
     flexDirection: 'row',
@@ -1587,7 +1941,7 @@ const styles = StyleSheet.create({
   assinaturaHeader: {
     backgroundColor: '#2C3E50',
     padding: 20,
-    paddingTop: 60,
+    paddingTop: 20,
   },
   assinaturaTitle: {
     fontSize: 24,

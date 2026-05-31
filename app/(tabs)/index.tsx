@@ -14,6 +14,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import apiService from '../../services/api.service';
 import { databaseService, SinistroLocal } from '../../services/database.service';
 import { ENDPOINTS } from '../../config/api';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface Sinistro {
   id: number;
@@ -32,6 +33,7 @@ interface SinistroListItem extends Sinistro {
 
 export default function HomeScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { empresa, loading: authLoading, updateEmpresa, assinaturaExpirada } = useAuth();
   
   const [sinistros, setSinistros] = useState<SinistroListItem[]>([]);
@@ -194,7 +196,7 @@ export default function HomeScreen() {
   return (
     <View style={styles.container}>
       {/* Header com informações da empresa */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: Math.max(insets.top, 12) + 12 }]}>
         <View style={styles.headerTop}>
           <Text style={styles.companyName}>{empresa.nome}</Text>
           <TouchableOpacity 
@@ -288,13 +290,14 @@ export default function HomeScreen() {
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>Nenhum sinistro registrado</Text>
             <Text style={styles.emptySubtext}>
-              Toque em "Novo Sinistro" para começar
+              Toque em Novo Sinistro para começar
             </Text>
           </View>
         ) : (
           <FlatList
             data={sinistros}
             keyExtractor={(item) => item.isLocal ? `local_${item.local_id}` : item.id.toString()}
+            contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 16) + 88 }}
             refreshControl={
               <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
             }
@@ -530,4 +533,3 @@ const styles = StyleSheet.create({
     color: '#95A5A6',
   },
 });
-

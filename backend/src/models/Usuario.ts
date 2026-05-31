@@ -6,7 +6,8 @@ interface UsuarioAttributes {
   id: number;
   empresa_id: number;
   nome: string;
-  email: string;
+  login: string;
+  email?: string;
   senha: string;
   role: 'admin' | 'operador' | 'visualizador';
   ativo: boolean;
@@ -14,13 +15,14 @@ interface UsuarioAttributes {
   updatedAt?: Date;
 }
 
-interface UsuarioCreationAttributes extends Optional<UsuarioAttributes, 'id' | 'ativo' | 'role'> {}
+interface UsuarioCreationAttributes extends Optional<UsuarioAttributes, 'id' | 'ativo' | 'role' | 'email'> {}
 
 class Usuario extends Model<UsuarioAttributes, UsuarioCreationAttributes> implements UsuarioAttributes {
   public id!: number;
   public empresa_id!: number;
   public nome!: string;
-  public email!: string;
+  public login!: string;
+  public email?: string;
   public senha!: string;
   public role!: 'admin' | 'operador' | 'visualizador';
   public ativo!: boolean;
@@ -48,9 +50,13 @@ Usuario.init(
       type: DataTypes.STRING(255),
       allowNull: false
     },
+    login: {
+      type: DataTypes.STRING(80),
+      allowNull: false
+    },
     email: {
       type: DataTypes.STRING(255),
-      allowNull: false,
+      allowNull: true,
       validate: {
         isEmail: true
       }

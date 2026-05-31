@@ -2,12 +2,79 @@
 
 import { Request, Response } from 'express';
 import Empresa from '../models/Empresa';
+import Usuario from '../models/Usuario';
 import TrialUsage from '../models/TrialUsage';
 import { hashPassword, comparePassword, generateToken, generateCodigoEmpresa, validarCNPJ, formatarCNPJ } from '../utils/auth';
 import { sendEmail, emailBoasVindas, emailSenhaDefinida, emailValidacaoConta, emailContaValidada } from '../services/emailService';
 import { createLog } from '../middleware/logger';
+import { uploadBase64Image, deleteImage } from '../services/uploadService';
 import jwt, { JwtPayload } from 'jsonwebtoken';
 import { Op } from 'sequelize';
+
+const normalizarEmail = (email?: string) => String(email || '').trim().toLowerCase();
+const normalizarLogin = (login?: string) => String(login || '').trim().toLowerCase();
+const somenteDigitos = (valor?: string) => String(valor || '').replace(/\D/g, '');
+
+const usuarioResponse = (usuario: Usuario) => ({
+  id: usuario.id,
+  empresa_id: usuario.empresa_id,
+  nome: usuario.nome,
+  login: usuario.login,
+  email: usuario.email,
+  role: usuario.role,
+  ativo: usuario.ativo,
+  createdAt: usuario.createdAt,
+  updatedAt: usuario.updatedAt,
+});
+
+const sincronizarSessaoLicenca = (empresa: Empresa, token: string, deviceId: string, usuarioId?: number, role: string = 'admin') => {
+  const quantidadeLicencas = empresa.quantidade_licencas || 1;
+  const agoraIso = new Date().toISOString();
+  const sessoesAtuais = Array.isArray(empresa.active_sessions) ? empresa.active_sessions : [];
+
+  const sessoesSemDispositivoAtual = sessoesAtuais.filter(sessao => {
+    const mesmoDispositivo = sessao.device_id === deviceId;
+    const mesmoUsuario = usuarioId ? sessao.usuario_id === usuarioId : !sessao.usuario_id;
+    return !mesmoDispositivo && !mesmoUsuario;
+  });
+  const sessoesAtualizadas = [
+    ...sessoesSemDispositivoAtual,
+    {
+      token,
+      device_id: deviceId,
+      usuario_id: usuarioId,
+      role,
+      ultimo_login: agoraIso,
+    },
+  ];
+
+  const sessoesDentroDoLimite = sessoesAtualizadas.slice(-quantidadeLicencas);
+  empresa.active_sessions = sessoesDentroDoLimite;
+  empresa.active_tokens = sessoesDentroDoLimite.map(sessao => sessao.token);
+
+  return {
+    quantidadeLicencas,
+    sessoesAtivas: sessoesDentroDoLimite.length,
+    substituiuMesmoDispositivo: sessoesAtuais.length !== sessoesSemDispositivoAtual.length,
+    removeuExcedentes: sessoesAtualizadas.length > quantidadeLicencas,
+  };
+};
+
+const toEmpresaResponse = (empresa: Empresa) => ({
+  id: empresa.id,
+  nome: empresa.nome,
+  codigo: empresa.codigo,
+  email: empresa.email,
+  ativo: empresa.ativo && empresa.isAssinaturaAtiva(),
+  diasRestantes: empresa.diasRestantes(),
+  assinaturaAtiva: empresa.isAssinaturaAtiva(),
+  emTrial: empresa.isTrialAtivo(),
+  quantidade_licencas: empresa.quantidade_licencas,
+  prestador_nome: empresa.prestador_nome,
+  prestador_telefone: empresa.prestador_telefone,
+  logo_url: empresa.logo_url,
+  login_responsavel: empresa.login_responsavel || empresa.cnpj,
+});
 
 export const logout = async (req: Request, res: Response) => {
   try {
@@ -29,6 +96,7 @@ export const logout = async (req: Request, res: Response) => {
     }
     // Remover token do array
     empresa.active_tokens = empresa.active_tokens.filter(t => t !== token);
+    empresa.active_sessions = (empresa.active_sessions || []).filter(sessao => sessao.token !== token);
     await empresa.save();
     console.log('✅ [LOGOUT] Token removido:', token);
     return res.json({ message: 'Logout realizado com sucesso' });
@@ -549,104 +617,102 @@ export const definirSenha = async (req: Request, res: Response) => {
 // Login
 export const login = async (req: Request, res: Response) => {
   try {
-    let { codigo, senha, device_id } = req.body;
-    // Código da empresa sempre minúsculo e sem espaços
+    let { codigo, senha, device_id, login } = req.body;
     if (codigo) codigo = codigo.trim().toLowerCase();
-    
-    console.log('🔐 [LOGIN] Tentativa de login:', { codigo, device_id });
-    
-    if (!codigo || !senha) {
-      console.log('❌ [LOGIN] Código ou senha não fornecidos');
-      return res.status(400).json({ error: 'Código e senha são obrigatórios' });
+    login = normalizarLogin(login);
+
+    console.log('[LOGIN] Tentativa de login:', { codigo, login: login || undefined, device_id });
+
+    if (!codigo || !login || !senha) {
+      return res.status(400).json({ error: 'Codigo da empresa, login e senha sao obrigatorios' });
     }
 
     if (!device_id) {
-      console.log('❌ [LOGIN] Device ID não fornecido');
-      return res.status(400).json({ error: 'Identificação do dispositivo é obrigatória' });
+      return res.status(400).json({ error: 'Identificacao do dispositivo e obrigatoria' });
     }
-    
+
     const empresa = await Empresa.findOne({ where: { codigo } });
-    
+
     if (!empresa) {
-      console.log('❌ [LOGIN] Empresa não encontrada:', codigo);
-      return res.status(401).json({ error: 'Código ou senha inválidos' });
+      return res.status(401).json({ error: 'Codigo ou senha invalidos' });
     }
-    
-    console.log('✅ [LOGIN] Empresa encontrada:', { id: empresa.id, ativo: empresa.ativo, temSenha: !!empresa.senha });
-    
+
     if (!empresa.ativo) {
-      console.log('⚠️ [LOGIN] Empresa não validada');
-      return res.status(401).json({ 
-        error: 'Conta não validada. Verifique seu email para validar a conta.' 
+      return res.status(401).json({
+        error: 'Conta nao validada. Verifique seu email para validar a conta.'
       });
     }
 
     if (!empresa.senha) {
-      console.log('⚠️ [LOGIN] Empresa sem senha definida');
-      return res.status(401).json({ 
-        error: 'Senha não definida. Verifique seu email para definir a senha.' 
+      return res.status(401).json({
+        error: 'Senha nao definida. Verifique seu email para definir a senha.'
       });
     }
-    
-    const senhaValida = await comparePassword(senha, empresa.senha);
-    
-    console.log('🔑 [LOGIN] Validação de senha:', { senhaValida });
-    
-    if (!senhaValida) {
-      console.log('❌ [LOGIN] Senha inválida');
-      return res.status(401).json({ error: 'Código ou senha inválidos' });
-    }
-    
-    // Gerar token
-    const token = generateToken(empresa.id, empresa.codigo);
 
-    // MULTI-LICENÇA: Adicionar novo token ao array active_tokens (respeita quantidade_licencas)
-    if (!empresa.active_tokens) {
-      empresa.active_tokens = [];
+    let senhaHash = empresa.senha;
+    let usuario: Usuario | null = null;
+    let role = 'admin';
+    const loginResponsavel = normalizarLogin(empresa.login_responsavel || empresa.cnpj);
+    const loginEhDono = login === loginResponsavel || somenteDigitos(login) === somenteDigitos(empresa.cnpj) || login === normalizarLogin(empresa.codigo);
+
+    if (!loginEhDono) {
+      usuario = await Usuario.findOne({
+        where: {
+          empresa_id: empresa.id,
+          login,
+          ativo: true,
+        },
+      });
+
+      if (!usuario) {
+        return res.status(401).json({ error: 'Usuario ou senha invalidos' });
+      }
+
+      senhaHash = usuario.senha;
+      role = usuario.role;
     }
-    const quantidadeLicencas = empresa.quantidade_licencas || 1;
-    empresa.active_tokens.push(token);
-    // Se ultrapassar o limite, remove tokens antigos
-    if (empresa.active_tokens.length > quantidadeLicencas) {
-      const tokensExcedentes = empresa.active_tokens.length - quantidadeLicencas;
-      empresa.active_tokens = empresa.active_tokens.slice(tokensExcedentes);
-      console.log('📊 [LOGIN] Limite de dispositivos atingido, removendo tokens antigos');
+
+    const senhaValida = await comparePassword(senha, senhaHash);
+
+    if (!senhaValida) {
+      return res.status(401).json({ error: loginEhDono ? 'Login ou senha invalidos' : 'Usuario ou senha invalidos' });
     }
+
+    const token = generateToken(empresa.id, empresa.codigo, usuario?.id, role);
+
+    const controleLicencas = sincronizarSessaoLicenca(empresa, token, device_id, usuario?.id, role);
     empresa.device_id = device_id;
     empresa.ultimo_login = new Date();
     await empresa.save();
-    console.log(`✅ [LOGIN] Novo token adicionado (${empresa.active_tokens.length}/${quantidadeLicencas} dispositivos ativos)`);
+    console.log(`[LOGIN] Sessao ativa (${controleLicencas.sessoesAtivas}/${controleLicencas.quantidadeLicencas} dispositivos ativos)`);
 
-    // Log de login
     await createLog(
-      { empresaId: empresa.id } as Request,
+      { empresaId: empresa.id, usuarioId: usuario?.id } as Request,
       {
         acao: 'login',
-        entidade: 'empresa',
-        entidade_id: empresa.id
+        entidade: usuario ? 'usuario' : 'empresa',
+        entidade_id: usuario?.id || empresa.id
       }
     );
 
     return res.json({
       token,
-      empresa: {
-        id: empresa.id,
+      empresa: toEmpresaResponse(empresa),
+      usuario: usuario ? usuarioResponse(usuario) : {
+        id: null,
+        empresa_id: empresa.id,
         nome: empresa.nome,
-        codigo: empresa.codigo,
+        login: empresa.login_responsavel || empresa.cnpj,
         email: empresa.email,
-        ativo: empresa.ativo && empresa.isAssinaturaAtiva(),
-        diasRestantes: empresa.diasRestantes(),
-        assinaturaAtiva: empresa.isAssinaturaAtiva(),
-        emTrial: empresa.isTrialAtivo(),
-        quantidade_licencas: empresa.quantidade_licencas
-      }
+        role: 'admin',
+        ativo: true,
+      },
     });
   } catch (error) {
-    console.error('❌ [LOGIN] Erro ao fazer login:', error);
+    console.error('[LOGIN] Erro ao fazer login:', error);
     return res.status(500).json({ error: 'Erro ao fazer login' });
   }
 };
-
 // Obter informações da empresa logada
 export const getEmpresa = async (req: Request, res: Response) => {
   try {
@@ -660,15 +726,10 @@ export const getEmpresa = async (req: Request, res: Response) => {
     const ativoAjustado = empresa.ativo && assinaturaAtiva;
     
     return res.json({
-      id: empresa.id,
-      nome: empresa.nome,
-      codigo: empresa.codigo,
-      email: empresa.email,
-      ativo: ativoAjustado, // Ajustado para considerar expiração
-      diasRestantes: diasRestantes,
-      assinaturaAtiva: assinaturaAtiva,
-      emTrial: empresa.isTrialAtivo(),
-      quantidade_licencas: empresa.quantidade_licencas
+      ...toEmpresaResponse(empresa),
+      ativo: ativoAjustado,
+      diasRestantes,
+      assinaturaAtiva,
     });
   } catch (error) {
     console.error('Erro ao obter empresa:', error);
@@ -810,6 +871,295 @@ export const atualizarEmpresa = async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Erro ao atualizar empresa:', error);
     return res.status(500).json({ error: 'Erro ao atualizar empresa' });
+  }
+};
+
+export const atualizarPrestador = async (req: Request, res: Response) => {
+  try {
+    const empresa = req.empresa!;
+    const {
+      prestador_nome,
+      prestador_telefone,
+      logo_base64,
+      remover_logo
+    } = req.body;
+
+    if (prestador_nome !== undefined) {
+      empresa.prestador_nome = String(prestador_nome || '').trim() || undefined;
+    }
+
+    if (prestador_telefone !== undefined) {
+      empresa.prestador_telefone = String(prestador_telefone || '').trim() || undefined;
+    }
+
+    if (remover_logo) {
+      if (empresa.logo_cloudinary_id) {
+        await deleteImage(empresa.logo_cloudinary_id);
+      }
+      empresa.logo_url = undefined;
+      empresa.logo_cloudinary_id = undefined;
+    } else if (logo_base64) {
+      if (empresa.logo_cloudinary_id) {
+        await deleteImage(empresa.logo_cloudinary_id);
+      }
+
+      const uploadResult = await uploadBase64Image(String(logo_base64), `logos/${empresa.id}`);
+      empresa.logo_url = uploadResult.secure_url;
+      empresa.logo_cloudinary_id = uploadResult.public_id;
+    }
+
+    await empresa.save();
+
+    return res.json({
+      success: true,
+      message: 'Dados do prestador atualizados com sucesso',
+      empresa: toEmpresaResponse(empresa),
+    });
+  } catch (error) {
+    console.error('Erro ao atualizar dados do prestador:', error);
+    return res.status(500).json({ error: 'Erro ao atualizar dados do prestador' });
+  }
+};
+const exigirAdmin = (req: Request, res: Response): boolean => {
+  if (req.usuarioRole && req.usuarioRole !== 'admin') {
+    res.status(403).json({ error: 'Apenas o administrador da empresa pode gerenciar usuarios' });
+    return false;
+  }
+
+  return true;
+};
+
+export const listarUsuarios = async (req: Request, res: Response) => {
+  try {
+    if (!exigirAdmin(req, res)) return;
+
+    const usuarios = await Usuario.findAll({
+      where: { empresa_id: req.empresaId },
+      order: [['ativo', 'DESC'], ['nome', 'ASC']],
+    });
+
+    const ativos = usuarios.filter(usuario => usuario.ativo).length;
+    const limiteFuncionarios = Math.max((req.empresa?.quantidade_licencas || 1) - 1, 0);
+
+    const administrador = {
+      id: 0,
+      empresa_id: req.empresa!.id,
+      nome: req.empresa!.nome,
+      login: req.empresa!.login_responsavel || req.empresa!.cnpj,
+      email: req.empresa!.email,
+      role: 'admin',
+      ativo: true,
+    };
+
+    return res.json({
+      usuarios: [administrador, ...usuarios.map(usuarioResponse)],
+      limite_funcionarios: limiteFuncionarios,
+      funcionarios_ativos: ativos,
+      licencas_total: req.empresa?.quantidade_licencas || 1,
+    });
+  } catch (error) {
+    console.error('Erro ao listar usuarios:', error);
+    return res.status(500).json({ error: 'Erro ao listar usuarios' });
+  }
+};
+
+export const criarUsuario = async (req: Request, res: Response) => {
+  try {
+    if (!exigirAdmin(req, res)) return;
+
+    const empresa = req.empresa!;
+    const nome = String(req.body.nome || '').trim();
+    const login = normalizarLogin(req.body.login);
+    const email = req.body.email ? normalizarEmail(req.body.email) : undefined;
+    const senha = String(req.body.senha || '');
+    const role = ['operador', 'visualizador'].includes(req.body.role) ? req.body.role : 'operador';
+
+    if (!nome || !login || !senha) {
+      return res.status(400).json({ error: 'Nome, login e senha sao obrigatorios' });
+    }
+
+    if (senha.length < 6) {
+      return res.status(400).json({ error: 'Senha deve ter no minimo 6 caracteres' });
+    }
+
+    const limiteFuncionarios = Math.max((empresa.quantidade_licencas || 1) - 1, 0);
+    const funcionariosAtivos = await Usuario.count({ where: { empresa_id: empresa.id, ativo: true } });
+
+    if (funcionariosAtivos >= limiteFuncionarios) {
+      return res.status(400).json({
+        error: `Limite de usuarios atingido. Sua assinatura permite ${empresa.quantidade_licencas || 1} licenca(s): 1 administrador e ${limiteFuncionarios} funcionario(s).`,
+      });
+    }
+
+    if (somenteDigitos(login) === somenteDigitos(empresa.cnpj) || login === normalizarLogin(empresa.codigo)) {
+      return res.status(400).json({ error: 'Este login esta reservado para o administrador da empresa' });
+    }
+
+    const usuarioExistente = await Usuario.findOne({ where: { empresa_id: empresa.id, login } });
+    if (usuarioExistente) {
+      return res.status(400).json({ error: 'Login ja cadastrado para esta empresa' });
+    }
+
+    const usuario = await Usuario.create({
+      empresa_id: empresa.id,
+      nome,
+      login,
+      email,
+      senha: await hashPassword(senha),
+      role,
+      ativo: true,
+    });
+
+    return res.status(201).json({ usuario: usuarioResponse(usuario) });
+  } catch (error) {
+    console.error('Erro ao criar usuario:', error);
+    return res.status(500).json({ error: 'Erro ao criar usuario' });
+  }
+};
+
+export const atualizarUsuario = async (req: Request, res: Response) => {
+  try {
+    if (!exigirAdmin(req, res)) return;
+
+    const empresa = req.empresa!;
+    if (Number(req.params.id) === 0) {
+      const nomeEmpresa = req.body.nome !== undefined ? String(req.body.nome || '').trim() : empresa.nome;
+      const loginResponsavel = req.body.login !== undefined ? normalizarLogin(req.body.login) : normalizarLogin(empresa.login_responsavel || empresa.cnpj);
+      const senha = req.body.senha ? String(req.body.senha) : undefined;
+
+      if (!nomeEmpresa || !loginResponsavel) {
+        return res.status(400).json({ error: 'Nome e login sao obrigatorios' });
+      }
+
+      const loginExistente = await Usuario.findOne({
+        where: {
+          empresa_id: empresa.id,
+          login: loginResponsavel,
+        },
+      });
+
+      if (loginExistente) {
+        return res.status(400).json({ error: 'Login ja cadastrado para um funcionario' });
+      }
+
+      await empresa.update({
+        nome: nomeEmpresa,
+        login_responsavel: loginResponsavel,
+        ...(senha ? { senha: await hashPassword(senha) } : {}),
+      });
+
+      return res.json({
+        usuario: {
+          id: 0,
+          empresa_id: empresa.id,
+          nome: empresa.nome,
+          login: empresa.login_responsavel || empresa.cnpj,
+          email: empresa.email,
+          role: 'admin',
+          ativo: true,
+        },
+      });
+    }
+
+    const usuario = await Usuario.findOne({
+      where: {
+        id: req.params.id,
+        empresa_id: empresa.id,
+      },
+    });
+
+    if (!usuario) {
+      return res.status(404).json({ error: 'Usuario nao encontrado' });
+    }
+
+    const nome = req.body.nome !== undefined ? String(req.body.nome || '').trim() : usuario.nome;
+    const login = req.body.login !== undefined ? normalizarLogin(req.body.login) : usuario.login;
+    const email = req.body.email !== undefined ? normalizarEmail(req.body.email) || undefined : usuario.email;
+    const senha = req.body.senha ? String(req.body.senha) : undefined;
+    const role = ['operador', 'visualizador'].includes(req.body.role) ? req.body.role : usuario.role;
+    const ativo = req.body.ativo !== undefined ? Boolean(req.body.ativo) : usuario.ativo;
+
+    if (!nome || !login) {
+      return res.status(400).json({ error: 'Nome e login sao obrigatorios' });
+    }
+
+    if (senha && senha.length < 6) {
+      return res.status(400).json({ error: 'Senha deve ter no minimo 6 caracteres' });
+    }
+
+    if (!usuario.ativo && ativo) {
+      const limiteFuncionarios = Math.max((empresa.quantidade_licencas || 1) - 1, 0);
+      const funcionariosAtivos = await Usuario.count({ where: { empresa_id: empresa.id, ativo: true } });
+      if (funcionariosAtivos >= limiteFuncionarios) {
+        return res.status(400).json({ error: 'Limite de usuarios ativos atingido para a quantidade de licencas' });
+      }
+    }
+
+    if (somenteDigitos(login) === somenteDigitos(empresa.cnpj) || login === normalizarLogin(empresa.codigo)) {
+      return res.status(400).json({ error: 'Este login esta reservado para o administrador da empresa' });
+    }
+
+    if (login !== usuario.login) {
+      const usuarioExistente = await Usuario.findOne({
+        where: {
+          empresa_id: empresa.id,
+          login,
+          id: { [Op.ne]: usuario.id },
+        },
+      });
+
+      if (usuarioExistente) {
+        return res.status(400).json({ error: 'Login ja cadastrado para esta empresa' });
+      }
+    }
+
+    await usuario.update({
+      nome,
+      login,
+      email,
+      role,
+      ativo,
+      ...(senha ? { senha: await hashPassword(senha) } : {}),
+    });
+
+    if (!ativo) {
+      empresa.active_sessions = (empresa.active_sessions || []).filter(sessao => sessao.usuario_id !== usuario.id);
+      empresa.active_tokens = (empresa.active_sessions || []).map(sessao => sessao.token);
+      await empresa.save();
+    }
+
+    return res.json({ usuario: usuarioResponse(usuario) });
+  } catch (error) {
+    console.error('Erro ao atualizar usuario:', error);
+    return res.status(500).json({ error: 'Erro ao atualizar usuario' });
+  }
+};
+
+export const removerUsuario = async (req: Request, res: Response) => {
+  try {
+    if (!exigirAdmin(req, res)) return;
+
+    const empresa = req.empresa!;
+    const usuario = await Usuario.findOne({
+      where: {
+        id: req.params.id,
+        empresa_id: empresa.id,
+      },
+    });
+
+    if (!usuario) {
+      return res.status(404).json({ error: 'Usuario nao encontrado' });
+    }
+
+    await usuario.update({ ativo: false });
+    empresa.active_sessions = (empresa.active_sessions || []).filter(sessao => sessao.usuario_id !== usuario.id);
+    empresa.active_tokens = (empresa.active_sessions || []).map(sessao => sessao.token);
+    await empresa.save();
+
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('Erro ao remover usuario:', error);
+    return res.status(500).json({ error: 'Erro ao remover usuario' });
   }
 };
 // Desenvolvimento: Resetar trial para X dias atrás

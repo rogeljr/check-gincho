@@ -22,7 +22,8 @@ async function migrate() {
     await pool.query(`
       ALTER TABLE empresas 
       ADD COLUMN IF NOT EXISTS quantidade_licencas INTEGER DEFAULT 1,
-      ADD COLUMN IF NOT EXISTS active_tokens JSONB DEFAULT '[]'::jsonb;
+      ADD COLUMN IF NOT EXISTS active_tokens JSONB DEFAULT '[]'::jsonb,
+      ADD COLUMN IF NOT EXISTS active_sessions JSONB DEFAULT '[]'::jsonb;
     `);
     console.log('✅ Campos adicionados à tabela empresas');
     

@@ -15,9 +15,11 @@ import NetInfo from '@react-native-community/netinfo';
 import { databaseService, SinistroLocal } from '../../services/database.service';
 import apiService from '../../services/api.service';
 import { useAuth } from '../../contexts/AuthContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function SinistrosPendentesScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { assinaturaExpirada } = useAuth();
   const [sinistrosPendentes, setSinistrosPendentes] = useState<SinistroLocal[]>([]);
   const [loading, setLoading] = useState(false);
@@ -155,7 +157,9 @@ export default function SinistrosPendentesScreen() {
   const abrirSinistro = (sinistro: SinistroLocal) => {
     router.push({
       pathname: '/sinistro/novo',
-      params: { edit_id: sinistro.servidor_id || sinistro.id },
+      params: sinistro.servidor_id
+        ? { edit_id: sinistro.servidor_id }
+        : { local_id: sinistro.id },
     });
   };
 
@@ -175,7 +179,7 @@ export default function SinistrosPendentesScreen() {
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: Math.max(insets.top, 12) + 12 }]}>
         <Text style={styles.title}>Sinistros Pendentes</Text>
         <View style={[
           styles.statusBadge,
@@ -248,7 +252,7 @@ export default function SinistrosPendentesScreen() {
               </View>
             </View>
           )}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[styles.listContent, { paddingBottom: Math.max(insets.bottom, 16) + 88 }]}
         />
       )}
     </View>

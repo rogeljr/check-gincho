@@ -42,24 +42,41 @@ export default function ConfiguracoesScreen() {
   const [prestadorEmpresa, setPrestadorEmpresa] = useState('');
   const [prestadorTelefone, setPrestadorTelefone] = useState('');
   const [logoPreview, setLogoPreview] = useState<string | undefined>();
+  const [logoRemovida, setLogoRemovida] = useState(false);
   const [loadingPrestador, setLoadingPrestador] = useState(false);
 
   useEffect(() => {
     carregarConfigPrestador();
-  }, []);
+  }, [empresa]);
 
   const carregarConfigPrestador = async () => {
     try {
       const config = await AsyncStorage.getItem('prestador_config');
+      const serverConfig: PrestadorConfig = {
+        nome: empresa?.prestador_nome || undefined,
+        empresa: empresa?.nome || undefined,
+        telefone: empresa?.prestador_telefone || undefined,
+        logo: empresa?.logo_url || undefined,
+      };
+
       if (config) {
         const parsed: PrestadorConfig = JSON.parse(config);
-        setPrestadorConfig(parsed);
-        setPrestadorNome(parsed.nome || '');
-        setPrestadorEmpresa(parsed.empresa || '');
-        setPrestadorTelefone(parsed.telefone || '');
-        if (parsed.logo) {
-          setLogoPreview(parsed.logo);
-        }
+        const merged = {
+          ...parsed,
+          ...serverConfig,
+          logo: serverConfig.logo || parsed.logo,
+        };
+        setPrestadorConfig(merged);
+        setPrestadorNome(merged.nome || '');
+        setPrestadorEmpresa(merged.empresa || empresa?.nome || '');
+        setPrestadorTelefone(merged.telefone || '');
+        setLogoPreview(merged.logo);
+      } else {
+        setPrestadorConfig(serverConfig);
+        setPrestadorNome(serverConfig.nome || '');
+        setPrestadorEmpresa(serverConfig.empresa || empresa?.nome || '');
+        setPrestadorTelefone(serverConfig.telefone || '');
+        setLogoPreview(serverConfig.logo);
       }
     } catch (error) {
       console.warn('Erro ao carregar config do prestador:', error);
@@ -70,14 +87,13 @@ export default function ConfiguracoesScreen() {
     try {
       const permissao = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permissao.granted) {
-        Alert.alert('Permissão necessária', 'Você precisa permitir acesso às fotos');
+        Alert.alert('PermissÃ£o necessÃ¡ria', 'VocÃª precisa permitir acesso Ã s fotos');
         return;
       }
 
       const resultado = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
-        allowsEditing: true,
-        aspect: [3, 1],
+        allowsEditing: false,
         quality: 0.8,
       });
 
@@ -90,8 +106,10 @@ export default function ConfiguracoesScreen() {
           const base64 = await FileSystem.readAsStringAsync(asset.uri, {
             encoding,
           });
-          const dataUri = `data:image/jpeg;base64,${base64}`;
+          const mimeType = asset.mimeType || 'image/jpeg';
+          const dataUri = `data:${mimeType};base64,${base64}`;
           setLogoPreview(dataUri);
+          setLogoRemovida(false);
           
           // Atualizar config
           const novaConfig: PrestadorConfig = {
@@ -109,6 +127,7 @@ export default function ConfiguracoesScreen() {
 
   const removerLogo = () => {
     setLogoPreview(undefined);
+    setLogoRemovida(true);
     const novaConfig: PrestadorConfig = {
       ...prestadorConfig,
       logo: undefined,
@@ -128,11 +147,27 @@ export default function ConfiguracoesScreen() {
         nome: prestadorNome.trim() || undefined,
         empresa: prestadorEmpresa.trim(),
         telefone: prestadorTelefone.trim() || undefined,
-        logo: prestadorConfig.logo,
+        logo: logoPreview,
       };
 
-      await AsyncStorage.setItem('prestador_config', JSON.stringify(novaConfig));
-      setPrestadorConfig(novaConfig);
+      const response = await authService.atualizarPrestador({
+        prestador_nome: novaConfig.nome,
+        prestador_telefone: novaConfig.telefone,
+        logo_base64: logoPreview?.startsWith('data:') ? logoPreview : undefined,
+        remover_logo: logoRemovida,
+      });
+
+      const configParaSalvar: PrestadorConfig = {
+        ...novaConfig,
+        empresa: response.empresa?.nome || novaConfig.empresa,
+        logo: response.empresa?.logo_url || novaConfig.logo,
+      };
+
+      await AsyncStorage.setItem('prestador_config', JSON.stringify(configParaSalvar));
+      setPrestadorConfig(configParaSalvar);
+      setLogoPreview(configParaSalvar.logo);
+      setLogoRemovida(false);
+      await updateEmpresa?.();
       Alert.alert('Sucesso', 'Dados do prestador salvos com sucesso');
       setEditandoPrestador(false);
     } catch (error) {
@@ -148,9 +183,9 @@ export default function ConfiguracoesScreen() {
     
     if (Platform.OS === 'web') {
       navigator.clipboard.writeText(empresa.codigo);
-      Alert.alert('Copiado', 'Código da empresa copiado para a área de transferência');
+      Alert.alert('Copiado', 'CÃ³digo da empresa copiado para a Ã¡rea de transferÃªncia');
     } else {
-      Alert.alert('Código da Empresa', empresa.codigo, [
+      Alert.alert('CÃ³digo da Empresa', empresa.codigo, [
         { text: 'Copiar', onPress: () => {} },
         { text: 'OK' }
       ]);
@@ -162,11 +197,11 @@ export default function ConfiguracoesScreen() {
 
     try {
       await Share.share({
-        message: `Meu código no Check Guincho é: ${empresa.codigo}`,
-        title: 'Código da Empresa',
+        message: `Meu cÃ³digo no Check Guincho Ã©: ${empresa.codigo}`,
+        title: 'CÃ³digo da Empresa',
       });
-    } catch (error: any) {
-      Alert.alert('Erro', 'Não foi possível compartilhar o código');
+    } catch {
+      Alert.alert('Erro', 'NÃ£o foi possÃ­vel compartilhar o cÃ³digo');
     }
   };
 
@@ -180,10 +215,10 @@ export default function ConfiguracoesScreen() {
     try {
       console.log('Enviando dados para atualizar empresa:', { nome, email });
       const response = await authService.atualizarEmpresa({ nome, email });
-      console.log('Resposta da atualização:', response);
+      console.log('Resposta da atualizaÃ§Ã£o:', response);
       
       if (response.success) {
-        Alert.alert('Sucesso', 'Informações atualizadas com sucesso');
+        Alert.alert('Sucesso', 'InformaÃ§Ãµes atualizadas com sucesso');
         setEditando(false);
         // Atualizar contexto
         if (updateEmpresa) {
@@ -195,10 +230,10 @@ export default function ConfiguracoesScreen() {
       console.error('Erro completo:', JSON.stringify(error, null, 2));
       console.error('Response data:', error.response?.data);
       
-      let mensagemErro = 'Erro ao salvar alterações';
+      let mensagemErro = 'Erro ao salvar alteraÃ§Ãµes';
       
       if (error.code === 'ECONNABORTED' || error.message === 'Network Error') {
-        mensagemErro = 'Erro de conexão. Verifique:\n\n1. Se está conectado à internet\n2. Se o servidor está disponível';
+        mensagemErro = 'Erro de conexÃ£o. Verifique:\n\n1. Se estÃ¡ conectado Ã  internet\n2. Se o servidor estÃ¡ disponÃ­vel';
       } else if (error.response?.data?.error) {
         mensagemErro = error.response.data.error;
       } else if (error.message) {
@@ -230,7 +265,7 @@ export default function ConfiguracoesScreen() {
             try {
               await signOut();
               router.replace('/login');
-            } catch (error) {
+            } catch {
               Alert.alert('Erro', 'Erro ao sair da conta');
             } finally {
               setLoading(false);
@@ -244,12 +279,12 @@ export default function ConfiguracoesScreen() {
   return (
     <ScrollView style={styles.container}>
       <View style={styles.content}>
-        <Text style={styles.title}>Configurações</Text>
+        <Text style={styles.title}>ConfiguraÃ§Ãµes</Text>
 
-        {/* Informações da Empresa */}
+        {/* InformaÃ§Ãµes da Empresa */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Informações da Empresa</Text>
+            <Text style={styles.sectionTitle}>InformaÃ§Ãµes da Empresa</Text>
             <TouchableOpacity onPress={() => setEditando(!editando)}>
               <Ionicons name={editando ? 'close' : 'create'} size={20} color="#007bff" />
             </TouchableOpacity>
@@ -284,7 +319,7 @@ export default function ConfiguracoesScreen() {
                 disabled={loading}
               >
                 <Ionicons name="checkmark" size={18} color="#fff" style={styles.buttonIcon} />
-                <Text style={styles.buttonText}>Salvar Alterações</Text>
+                <Text style={styles.buttonText}>Salvar AlteraÃ§Ãµes</Text>
               </TouchableOpacity>
             </>
           ) : (
@@ -300,7 +335,7 @@ export default function ConfiguracoesScreen() {
               </View>
 
               <View style={styles.infoBox}>
-                <Text style={styles.infoLabel}>Código da Empresa:</Text>
+                <Text style={styles.infoLabel}>CÃ³digo da Empresa:</Text>
                 <View style={styles.codigoContainer}>
                   <Text style={styles.codigoValue}>{empresa?.codigo}</Text>
                   <TouchableOpacity 
@@ -317,7 +352,7 @@ export default function ConfiguracoesScreen() {
                 onPress={handleCompartilharCodigo}
               >
                 <Ionicons name="share-social" size={18} color="#fff" style={styles.buttonIcon} />
-                <Text style={styles.buttonText}>Compartilhar Código</Text>
+                <Text style={styles.buttonText}>Compartilhar CÃ³digo</Text>
               </TouchableOpacity>
             </>
           )}
@@ -330,7 +365,7 @@ export default function ConfiguracoesScreen() {
           <View style={styles.statusBox}>
             <Text style={styles.statusLabel}>Assinatura:</Text>
             <Text style={[styles.statusValue, { color: (empresa?.diasRestantes ?? 0) > 0 ? '#4CAF50' : '#FF6B6B' }]}>
-              {(empresa?.diasRestantes ?? 0) > 0 ? '✓ Ativa' : '✗ Expirada'}
+              {(empresa?.diasRestantes ?? 0) > 0 ? 'âœ“ Ativa' : 'âœ— Expirada'}
             </Text>
           </View>
 
@@ -340,7 +375,7 @@ export default function ConfiguracoesScreen() {
           </View>
 
           <View style={styles.statusBox}>
-            <Text style={styles.statusLabel}>Licenças Ativas:</Text>
+            <Text style={styles.statusLabel}>LicenÃ§as Ativas:</Text>
             <Text style={styles.statusValue}>{empresa?.quantidade_licencas || 1}</Text>
           </View>
 
@@ -349,9 +384,16 @@ export default function ConfiguracoesScreen() {
             onPress={() => router.push('/selecionar-licencas')}
           >
             <Ionicons name="layers" size={18} color="#fff" style={styles.buttonIcon} />
-            <Text style={styles.licencasButtonText}>Selecionar Licenças</Text>
+            <Text style={styles.licencasButtonText}>Selecionar LicenÃ§as</Text>
           </TouchableOpacity>
 
+          <TouchableOpacity
+            style={styles.usuariosButton}
+            onPress={() => router.push('/usuarios')}
+          >
+            <Ionicons name="people" size={18} color="#fff" style={styles.buttonIcon} />
+            <Text style={styles.usuariosButtonText}>Gerenciar Usuários</Text>
+          </TouchableOpacity>
           <TouchableOpacity
             style={styles.assinaturaButton}
             onPress={() => router.push('/assinatura')}
@@ -378,7 +420,7 @@ export default function ConfiguracoesScreen() {
                   style={styles.input}
                   value={prestadorNome}
                   onChangeText={setPrestadorNome}
-                  placeholder="Seu nome ou do responsável"
+                  placeholder="Seu nome ou do responsÃ¡vel"
                 />
               </View>
 
@@ -388,7 +430,7 @@ export default function ConfiguracoesScreen() {
                   style={styles.input}
                   value={prestadorEmpresa}
                   onChangeText={setPrestadorEmpresa}
-                  placeholder="Nome da empresa (obrigatório)"
+                  placeholder="Nome da empresa (obrigatÃ³rio)"
                 />
               </View>
 
@@ -464,7 +506,7 @@ export default function ConfiguracoesScreen() {
 
               {prestadorConfig.nome && (
                 <View style={styles.infoBox}>
-                  <Text style={styles.infoLabel}>Responsável:</Text>
+                  <Text style={styles.infoLabel}>ResponsÃ¡vel:</Text>
                   <Text style={styles.infoValue}>{prestadorConfig.nome}</Text>
                 </View>
               )}
@@ -477,13 +519,13 @@ export default function ConfiguracoesScreen() {
               )}
               
               <Text style={styles.helpText}>
-                ℹ️ Esses dados serão exibidos no topo do relatório PDF gerado ao finalizar os sinistros.
+                â„¹ï¸ Esses dados serÃ£o exibidos no topo do relatÃ³rio PDF gerado ao finalizar os sinistros.
               </Text>
             </>
           )}
         </View>
 
-        {/* Ações */}
+        {/* AÃ§Ãµes */}
         <View style={styles.section}>
           <TouchableOpacity 
             style={styles.logoutButton}
@@ -497,7 +539,7 @@ export default function ConfiguracoesScreen() {
 
         <View style={styles.footer}>
           <Text style={styles.footerText}>Check Guincho v1.0.0</Text>
-          <Text style={styles.footerText}>© 2026 Todos os direitos reservados</Text>
+          <Text style={styles.footerText}>Â© 2026 Todos os direitos reservados</Text>
         </View>
       </View>
     </ScrollView>
@@ -671,6 +713,21 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
+  usuariosButton: {
+    flexDirection: 'row',
+    backgroundColor: '#0F766E',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  usuariosButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
   logoutButton: {
     flexDirection: 'row',
     backgroundColor: '#FF6B6B',
@@ -714,11 +771,12 @@ const styles = StyleSheet.create({
   logoPreview: {
     position: 'relative',
     alignItems: 'center',
+    justifyContent: 'center',
     marginTop: 12,
     borderRadius: 8,
-    overflow: 'hidden',
     backgroundColor: '#f5f5f5',
     padding: 12,
+    minHeight: 112,
   },
   logoImage: {
     width: '100%',
@@ -727,11 +785,12 @@ const styles = StyleSheet.create({
   },
   logoPreviewDisplay: {
     alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 16,
     borderRadius: 8,
-    overflow: 'hidden',
     backgroundColor: '#f5f5f5',
     padding: 12,
+    minHeight: 92,
   },
   logoImageDisplay: {
     width: '100%',

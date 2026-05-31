@@ -2,10 +2,12 @@ import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } fr
 import { useRouter } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
 import { useState, useEffect } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function AssinaturaExpiradaScreen() {
   const { empresa, signOut, assinaturaExpirada } = useAuth();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(false);
 
   const diasAtrasados = Math.abs(empresa?.diasRestantes ?? 0);
@@ -42,7 +44,7 @@ export default function AssinaturaExpiradaScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: Math.max(insets.top, 20) + 20 }]}>
       <View style={styles.header}>
         <Text style={styles.emoji}>⏰</Text>
         <Text style={styles.title}>Assinatura Expirada</Text>
@@ -68,11 +70,11 @@ export default function AssinaturaExpiradaScreen() {
         </Text>
 
         <Text style={styles.message}>
-          Clique em "Renovar Assinatura" para ir ao pagamento.
+          Clique em Renovar Assinatura para ir ao pagamento.
         </Text>
       </View>
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 24) + 16 }]}>
         <TouchableOpacity
           style={styles.buttonRenovar}
           onPress={handleRenovar}
@@ -101,7 +103,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f8f9fa',
-    paddingTop: 60,
+    paddingTop: 20,
   },
   header: {
     alignItems: 'center',
