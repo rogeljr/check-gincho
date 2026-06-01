@@ -893,6 +893,10 @@ export const atualizarEmpresa = async (req: Request, res: Response) => {
 
 export const atualizarPrestador = async (req: Request, res: Response) => {
   try {
+    if (req.usuarioRole && req.usuarioRole !== 'admin') {
+      return res.status(403).json({ error: 'Apenas o cadastro administrador da empresa pode alterar dados do prestador e logo' });
+    }
+
     const empresa = req.empresa!;
     const {
       prestador_nome,
@@ -909,12 +913,6 @@ export const atualizarPrestador = async (req: Request, res: Response) => {
       empresa.prestador_telefone = String(prestador_telefone || '').trim() || undefined;
     }
 
-    if (logo_base64 && !cloudinaryConfigurado()) {
-      return res.status(400).json({
-        error: 'Upload de logo não configurado no servidor. Salve os dados sem alterar a logo ou configure o Cloudinary.'
-      });
-    }
-
     if (remover_logo) {
       if (empresa.logo_cloudinary_id) {
         await deleteImage(empresa.logo_cloudinary_id);
@@ -926,9 +924,20 @@ export const atualizarPrestador = async (req: Request, res: Response) => {
         await deleteImage(empresa.logo_cloudinary_id);
       }
 
-      const uploadResult = await uploadBase64Image(String(logo_base64), `logos/${empresa.id}`);
-      empresa.logo_url = uploadResult.secure_url;
-      empresa.logo_cloudinary_id = uploadResult.public_id;
+      if (cloudinaryConfigurado()) {
+        try {
+          const uploadResult = await uploadBase64Image(String(logo_base64), `logos/${empresa.id}`);
+          empresa.logo_url = uploadResult.secure_url;
+          empresa.logo_cloudinary_id = uploadResult.public_id;
+        } catch (uploadError) {
+          console.warn('Falha ao enviar logo para Cloudinary; salvando data URI no banco:', uploadError);
+          empresa.logo_url = String(logo_base64);
+          empresa.logo_cloudinary_id = undefined;
+        }
+      } else {
+        empresa.logo_url = String(logo_base64);
+        empresa.logo_cloudinary_id = undefined;
+      }
     }
 
     await empresa.save();

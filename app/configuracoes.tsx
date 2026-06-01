@@ -34,6 +34,7 @@ export default function ConfiguracoesScreen() {
   const { empresa, signOut, updateEmpresa } = useAuth();
   const [loading, setLoading] = useState(false);
   const [editando, setEditando] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(true);
   const [nome, setNome] = useState(empresa?.nome || '');
   const [email, setEmail] = useState(empresa?.email || '');
   
@@ -51,6 +52,21 @@ export default function ConfiguracoesScreen() {
   useEffect(() => {
     carregarConfigPrestador();
   }, [empresa]);
+
+  useEffect(() => {
+    const carregarUsuario = async () => {
+      const usuarioJson = await AsyncStorage.getItem('@checkguincho:usuario');
+      if (!usuarioJson) {
+        setIsAdmin(true);
+        return;
+      }
+
+      const usuario = JSON.parse(usuarioJson);
+      setIsAdmin(usuario?.role === 'admin');
+    };
+
+    carregarUsuario();
+  }, []);
 
   const carregarConfigPrestador = async () => {
     try {
@@ -304,9 +320,11 @@ export default function ConfiguracoesScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Informações da Empresa</Text>
-            <TouchableOpacity onPress={() => setEditando(!editando)}>
-              <Ionicons name={editando ? 'close' : 'create'} size={20} color="#007bff" />
-            </TouchableOpacity>
+            {isAdmin && (
+              <TouchableOpacity onPress={() => setEditando(!editando)}>
+                <Ionicons name={editando ? 'close' : 'create'} size={20} color="#007bff" />
+              </TouchableOpacity>
+            )}
           </View>
           
           {editando ? (
@@ -426,9 +444,11 @@ export default function ConfiguracoesScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Dados do Prestador</Text>
-            <TouchableOpacity onPress={() => setEditandoPrestador(!editandoPrestador)}>
-              <Ionicons name={editandoPrestador ? 'close' : 'create'} size={20} color="#007bff" />
-            </TouchableOpacity>
+            {isAdmin && (
+              <TouchableOpacity onPress={() => setEditandoPrestador(!editandoPrestador)}>
+                <Ionicons name={editandoPrestador ? 'close' : 'create'} size={20} color="#007bff" />
+              </TouchableOpacity>
+            )}
           </View>
           
           {editandoPrestador ? (

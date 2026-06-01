@@ -67,9 +67,21 @@ const drawCells = (
   });
 };
 
-// Baixar imagem da URL
+const dataUriToBuffer = (value: string): Buffer | null => {
+  const match = value.match(/^data:([\w/+.-]+);base64,(.+)$/);
+  if (!match) return null;
+  return Buffer.from(match[2], 'base64');
+};
+
+// Baixar imagem da URL ou ler data URI salvo no banco.
 const downloadImage = (url: string): Promise<Buffer> => {
   return new Promise((resolve, reject) => {
+    const dataBuffer = dataUriToBuffer(url);
+    if (dataBuffer) {
+      resolve(dataBuffer);
+      return;
+    }
+
     const protocol = url.startsWith('https') ? https : http;
     
     protocol.get(url, (response) => {
@@ -308,9 +320,8 @@ export const uploadPDF = async (pdfBuffer: Buffer, sinistroId: number): Promise<
     const uploadStream = cloudinary.uploader.upload_stream(
       {
         folder: 'check-guincho/pdfs',
-        resource_type: 'auto',
-        public_id: `sinistro_${sinistroId}_${Date.now()}`,
-        format: 'pdf'
+        resource_type: 'raw',
+        public_id: `sinistro_${sinistroId}_${Date.now()}.pdf`
       },
       (error, result) => {
         if (error) reject(error);

@@ -1591,6 +1591,9 @@ export default function NovoSinistroScreen() {
           >
             <Text style={styles.buttonSecondaryText}>📷 Adicionar Fotos</Text>
           </TouchableOpacity>
+          <Text style={styles.securePdfInfo}>
+            O PDF protegido por senha fica disponível após sincronizar/finalizar o sinistro no servidor.
+          </Text>
         </View>
 
         <View style={styles.section}>
@@ -1650,13 +1653,14 @@ export default function NovoSinistroScreen() {
             </View>
           )}
 
+          {false && (
           <TouchableOpacity
             style={[
               styles.pdfLocalBtn,
               !pdfLocalUrl && styles.pdfLocalBtnDisabled
             ]}
-            onPress={abrirPdfLocal}
-            disabled={!pdfLocalUrl}
+            onPress={() => Alert.alert('PDF protegido', 'O PDF protegido por senha fica disponível após sincronizar/finalizar o sinistro no servidor.')}
+            disabled={false}
           >
             <Text style={[
               styles.pdfLocalBtnText,
@@ -1665,6 +1669,10 @@ export default function NovoSinistroScreen() {
               {pdfLocalUrl ? '📄 Abrir Comprovante Local' : '📄 Comprovante Local (Gere assinatura primeiro)'}
             </Text>
           </TouchableOpacity>
+          )}
+          <Text style={styles.securePdfInfo}>
+            O PDF protegido por senha fica disponível após sincronizar/finalizar o sinistro no servidor.
+          </Text>
         </View>
         
         <TouchableOpacity
@@ -1970,6 +1978,13 @@ const styles = StyleSheet.create({
   },
   pdfLocalBtnTextDisabled: {
     color: '#95A5A6',
+  },
+  securePdfInfo: {
+    marginTop: 10,
+    color: '#64748B',
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: 'center',
   },
   button: {
     backgroundColor: '#27AE60',
