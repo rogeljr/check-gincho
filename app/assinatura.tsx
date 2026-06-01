@@ -200,7 +200,12 @@ export default function AssinaturaScreen() {
         ]
       );
     } catch (error: any) {
-      Alert.alert('Erro', error?.message || 'Falha ao gerar pagamento.');
+      const mensagem =
+        error?.response?.data?.details ||
+        error?.response?.data?.error ||
+        error?.message ||
+        'Falha ao gerar pagamento.';
+      Alert.alert('Erro', mensagem);
     } finally {
       setCriandoPagamento(false);
     }

@@ -3,7 +3,7 @@
     "name": "Check Guincho",
     "slug": "check-guincho",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/images/checkgincho.png",
     "scheme": "checkguincho",
     "userInterfaceStyle": "automatic",

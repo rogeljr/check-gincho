@@ -28,7 +28,7 @@ export default function RootLayout() {
             <Stack.Screen name="sinistro/novo" options={{ headerShown: false }} />
             <Stack.Screen name="sinistro/fotos" options={{ headerShown: false }} />
           </Stack>
-          <StatusBar style="auto" />
+          <StatusBar style="auto" backgroundColor="#ffffff" translucent={false} />
         </ThemeProvider>
       </SafeAreaProvider>
     </AuthProvider>

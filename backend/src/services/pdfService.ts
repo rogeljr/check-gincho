@@ -137,7 +137,6 @@ export const generatePDF = async (
         }
       } else {
         doc.rect(left, y, 90, 54).stroke('#222');
-        doc.fontSize(9).fillColor('#777').text('LOGO', left, y + 22, { width: 90, align: 'center' });
       }
 
       doc.fillColor('#111').font('Helvetica-Bold').fontSize(18)

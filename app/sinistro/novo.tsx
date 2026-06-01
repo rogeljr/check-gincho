@@ -24,13 +24,16 @@ import SignatureCanvas from 'react-native-signature-canvas';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Print from 'expo-print';
 import * as FileSystem from 'expo-file-system/legacy';
+import * as ScreenOrientation from 'expo-screen-orientation';
 import { databaseService, SinistroLocal } from '../../services/database.service';
 import apiService from '../../services/api.service';
 import { API_CONFIG, ENDPOINTS } from '../../config/api';
+import { useAuth } from '../../contexts/AuthContext';
 
 export default function NovoSinistroScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { empresa } = useAuth();
   const { edit_id, local_id } = useLocalSearchParams();
   const editId = Array.isArray(edit_id) ? edit_id[0] : edit_id;
   const localIdParam = Array.isArray(local_id) ? local_id[0] : local_id;
@@ -519,6 +522,26 @@ export default function NovoSinistroScreen() {
     setAssinaturaModalVisible(false);
   };
 
+  useEffect(() => {
+    const ajustarOrientacaoAssinatura = async () => {
+      try {
+        if (assinaturaModalVisible) {
+          await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
+        } else {
+          await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+        }
+      } catch (error) {
+        console.warn('Erro ao alterar orientação da assinatura:', error);
+      }
+    };
+
+    ajustarOrientacaoAssinatura();
+
+    return () => {
+      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
+    };
+  }, [assinaturaModalVisible]);
+
   const abrirPdfLocal = async () => {
     if (!pdfLocalUrl) {
       Alert.alert('Aviso', 'PDF local não disponível');
@@ -918,7 +941,7 @@ export default function NovoSinistroScreen() {
       return value || '-';
     };
 
-    const empresaNome = prestadorInfo?.empresa || 'Check Guincho';
+    const empresaNome = prestadorInfo?.empresa || empresa?.nome || 'Empresa';
     const responsavel = prestadorInfo?.nome || '-';
     const dataAtendimento = formatDateTime(sinistro.createdAt);
     const dataGeracao = formatDateTime(new Date().toISOString());
@@ -936,7 +959,7 @@ export default function NovoSinistroScreen() {
 
     const logoHtml = prestadorInfo?.logo
       ? `<div class="logo-box"><img src="${prestadorInfo.logo}" /></div>`
-      : `<div class="logo-box logo-placeholder">Logo</div>`;
+      : `<div class="logo-box logo-placeholder"></div>`;
 
     const assinaturaHtml = assinaturaDataUri
       ? `<img src="${assinaturaDataUri}" />`
@@ -1254,6 +1277,10 @@ export default function NovoSinistroScreen() {
     } catch (error) {
       console.warn('Erro ao carregar dados do prestador:', error);
     }
+    prestadorInfo = {
+      ...prestadorInfo,
+      empresa: prestadorInfo.empresa || empresa?.nome || undefined,
+    };
 
     const html = gerarHtmlPdf(sinistro, fotos, assinaturaDataUri, prestadorInfo);
 
@@ -1665,6 +1692,7 @@ export default function NovoSinistroScreen() {
         visible={assinaturaModalVisible}
         animationType="slide"
         transparent={false}
+        supportedOrientations={['landscape-left', 'landscape-right']}
         onRequestClose={fecharModalAssinatura}
       >
         <View style={styles.assinaturaContainer}>
@@ -1681,30 +1709,65 @@ export default function NovoSinistroScreen() {
               descriptionText="Assine aqui"
               clearText="Limpar"
               confirmText="Confirmar"
-              webStyle={`.m-signature-pad {box-shadow: none; border: 2px solid #ddd;} .m-signature-pad--body {border: none;} .m-signature-pad--footer {display: none;}`}
+              webStyle={`
+                html, body {
+                  width: 100%;
+                  height: 100%;
+                  margin: 0;
+                  padding: 0;
+                  overflow: hidden;
+                  background: #fff;
+                }
+                .m-signature-pad {
+                  position: fixed;
+                  inset: 0;
+                  width: 100%;
+                  height: 100%;
+                  margin: 0;
+                  box-shadow: none;
+                  border: 0;
+                  border-radius: 0;
+                }
+                .m-signature-pad--body {
+                  position: absolute;
+                  left: 0;
+                  right: 0;
+                  top: 0;
+                  bottom: 0;
+                  border: 0;
+                }
+                .m-signature-pad--body canvas {
+                  width: 100% !important;
+                  height: 100% !important;
+                  touch-action: none;
+                }
+                .m-signature-pad--footer {
+                  display: none;
+                }
+              `}
             />
           </View>
           
-          <View style={styles.assinaturaButtons}>
+          <View style={[styles.assinaturaButtons, { paddingBottom: Math.max(insets.bottom, 8) }]}>
             <TouchableOpacity
               style={styles.assinaturaBtnLimpar}
               onPress={limparAssinatura}
             >
-              <Text style={styles.assinaturaBtnText}>🗑️ Limpar</Text>
+              <Text style={styles.assinaturaBtnText}>Limpar</Text>
             </TouchableOpacity>
             
             <TouchableOpacity
               style={styles.assinaturaBtnCancelar}
               onPress={fecharModalAssinatura}
             >
-              <Text style={styles.assinaturaBtnText}>✖️ Fechar</Text>
+              <Text style={styles.assinaturaBtnText}>Fechar</Text>
             </TouchableOpacity>
             
             <TouchableOpacity
               style={styles.assinaturaBtnConfirmar}
               onPress={() => signatureRef.current?.readSignature()}
             >
-              <Text style={styles.assinaturaBtnTextWhite}>✓ Confirmar</Text>
+              <Text style={styles.assinaturaBtnTextWhite}>Confirmar</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1940,11 +2003,11 @@ const styles = StyleSheet.create({
   },
   assinaturaHeader: {
     backgroundColor: '#2C3E50',
-    padding: 20,
-    paddingTop: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
   },
   assinaturaTitle: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#fff',
     marginBottom: 8,
@@ -1954,10 +2017,10 @@ const styles = StyleSheet.create({
     color: '#ECF0F1',
   },
   canvasContainer: {
-    height: 120,
-    margin: 20,
+    flex: 1,
+    marginHorizontal: 16,
     marginTop: 10,
-    marginBottom: 10,
+    marginBottom: 8,
     borderWidth: 2,
     borderColor: '#3498DB',
     borderRadius: 10,
@@ -1965,27 +2028,28 @@ const styles = StyleSheet.create({
   },
   assinaturaButtons: {
     flexDirection: 'row',
-    padding: 20,
+    paddingHorizontal: 16,
+    paddingTop: 8,
     gap: 10,
   },
   assinaturaBtnLimpar: {
     flex: 1,
     backgroundColor: '#95A5A6',
-    padding: 16,
+    paddingVertical: 12,
     borderRadius: 8,
     alignItems: 'center',
   },
   assinaturaBtnCancelar: {
     flex: 1,
     backgroundColor: '#E74C3C',
-    padding: 16,
+    paddingVertical: 12,
     borderRadius: 8,
     alignItems: 'center',
   },
   assinaturaBtnConfirmar: {
     flex: 1,
     backgroundColor: '#27AE60',
-    padding: 16,
+    paddingVertical: 12,
     borderRadius: 8,
     alignItems: 'center',
   },

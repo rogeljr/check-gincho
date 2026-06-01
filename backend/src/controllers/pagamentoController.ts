@@ -55,11 +55,10 @@ const ensureMercadoPagoConfigured = () => {
 
 const getPagamentoErrorResponse = (error: any) => {
   const mercadoPagoMessage = error?.cause?.[0]?.description || error?.cause?.message || error?.message;
-  const isProduction = process.env.NODE_ENV === 'production';
 
   return {
     error: 'Erro ao criar preferência de pagamento',
-    ...(!isProduction && mercadoPagoMessage ? { details: mercadoPagoMessage } : {})
+    ...(mercadoPagoMessage ? { details: mercadoPagoMessage } : {})
   };
 };
 

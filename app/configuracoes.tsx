@@ -19,6 +19,7 @@ import authService from '../services/auth.service';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface PrestadorConfig {
   nome?: string;
@@ -29,6 +30,7 @@ interface PrestadorConfig {
 
 export default function ConfiguracoesScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { empresa, signOut, updateEmpresa } = useAuth();
   const [loading, setLoading] = useState(false);
   const [editando, setEditando] = useState(false);
@@ -87,7 +89,7 @@ export default function ConfiguracoesScreen() {
     try {
       const permissao = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permissao.granted) {
-        Alert.alert('PermissÃ£o necessÃ¡ria', 'VocÃª precisa permitir acesso Ã s fotos');
+        Alert.alert('Permissão necessária', 'Você precisa permitir acesso às fotos');
         return;
       }
 
@@ -183,9 +185,9 @@ export default function ConfiguracoesScreen() {
     
     if (Platform.OS === 'web') {
       navigator.clipboard.writeText(empresa.codigo);
-      Alert.alert('Copiado', 'CÃ³digo da empresa copiado para a Ã¡rea de transferÃªncia');
+      Alert.alert('Copiado', 'Código da empresa copiado para a área de transferência');
     } else {
-      Alert.alert('CÃ³digo da Empresa', empresa.codigo, [
+      Alert.alert('Código da Empresa', empresa.codigo, [
         { text: 'Copiar', onPress: () => {} },
         { text: 'OK' }
       ]);
@@ -197,11 +199,11 @@ export default function ConfiguracoesScreen() {
 
     try {
       await Share.share({
-        message: `Meu cÃ³digo no Check Guincho Ã©: ${empresa.codigo}`,
-        title: 'CÃ³digo da Empresa',
+        message: `Meu código no Check Guincho é: ${empresa.codigo}`,
+        title: 'Código da Empresa',
       });
     } catch {
-      Alert.alert('Erro', 'NÃ£o foi possÃ­vel compartilhar o cÃ³digo');
+      Alert.alert('Erro', 'Não foi possível compartilhar o código');
     }
   };
 
@@ -215,10 +217,10 @@ export default function ConfiguracoesScreen() {
     try {
       console.log('Enviando dados para atualizar empresa:', { nome, email });
       const response = await authService.atualizarEmpresa({ nome, email });
-      console.log('Resposta da atualizaÃ§Ã£o:', response);
+      console.log('Resposta da atualização:', response);
       
       if (response.success) {
-        Alert.alert('Sucesso', 'InformaÃ§Ãµes atualizadas com sucesso');
+        Alert.alert('Sucesso', 'Informações atualizadas com sucesso');
         setEditando(false);
         // Atualizar contexto
         if (updateEmpresa) {
@@ -230,10 +232,10 @@ export default function ConfiguracoesScreen() {
       console.error('Erro completo:', JSON.stringify(error, null, 2));
       console.error('Response data:', error.response?.data);
       
-      let mensagemErro = 'Erro ao salvar alteraÃ§Ãµes';
+      let mensagemErro = 'Erro ao salvar alterações';
       
       if (error.code === 'ECONNABORTED' || error.message === 'Network Error') {
-        mensagemErro = 'Erro de conexÃ£o. Verifique:\n\n1. Se estÃ¡ conectado Ã  internet\n2. Se o servidor estÃ¡ disponÃ­vel';
+        mensagemErro = 'Erro de conexão. Verifique:\n\n1. Se está conectado à internet\n2. Se o servidor está disponível';
       } else if (error.response?.data?.error) {
         mensagemErro = error.response.data.error;
       } else if (error.message) {
@@ -277,14 +279,21 @@ export default function ConfiguracoesScreen() {
   };
 
   return (
-    <ScrollView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['bottom']}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: Math.max(insets.bottom + 96, 120) },
+        ]}
+      >
       <View style={styles.content}>
-        <Text style={styles.title}>ConfiguraÃ§Ãµes</Text>
+        <Text style={styles.title}>Configurações</Text>
 
-        {/* InformaÃ§Ãµes da Empresa */}
+        {/* Informações da Empresa */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>InformaÃ§Ãµes da Empresa</Text>
+            <Text style={styles.sectionTitle}>Informações da Empresa</Text>
             <TouchableOpacity onPress={() => setEditando(!editando)}>
               <Ionicons name={editando ? 'close' : 'create'} size={20} color="#007bff" />
             </TouchableOpacity>
@@ -319,7 +328,7 @@ export default function ConfiguracoesScreen() {
                 disabled={loading}
               >
                 <Ionicons name="checkmark" size={18} color="#fff" style={styles.buttonIcon} />
-                <Text style={styles.buttonText}>Salvar AlteraÃ§Ãµes</Text>
+                <Text style={styles.buttonText}>Salvar Alterações</Text>
               </TouchableOpacity>
             </>
           ) : (
@@ -335,7 +344,7 @@ export default function ConfiguracoesScreen() {
               </View>
 
               <View style={styles.infoBox}>
-                <Text style={styles.infoLabel}>CÃ³digo da Empresa:</Text>
+                <Text style={styles.infoLabel}>Código da Empresa:</Text>
                 <View style={styles.codigoContainer}>
                   <Text style={styles.codigoValue}>{empresa?.codigo}</Text>
                   <TouchableOpacity 
@@ -352,7 +361,7 @@ export default function ConfiguracoesScreen() {
                 onPress={handleCompartilharCodigo}
               >
                 <Ionicons name="share-social" size={18} color="#fff" style={styles.buttonIcon} />
-                <Text style={styles.buttonText}>Compartilhar CÃ³digo</Text>
+                <Text style={styles.buttonText}>Compartilhar Código</Text>
               </TouchableOpacity>
             </>
           )}
@@ -365,7 +374,7 @@ export default function ConfiguracoesScreen() {
           <View style={styles.statusBox}>
             <Text style={styles.statusLabel}>Assinatura:</Text>
             <Text style={[styles.statusValue, { color: (empresa?.diasRestantes ?? 0) > 0 ? '#4CAF50' : '#FF6B6B' }]}>
-              {(empresa?.diasRestantes ?? 0) > 0 ? 'âœ“ Ativa' : 'âœ— Expirada'}
+              {(empresa?.diasRestantes ?? 0) > 0 ? 'Ativa' : 'Expirada'}
             </Text>
           </View>
 
@@ -375,7 +384,7 @@ export default function ConfiguracoesScreen() {
           </View>
 
           <View style={styles.statusBox}>
-            <Text style={styles.statusLabel}>LicenÃ§as Ativas:</Text>
+            <Text style={styles.statusLabel}>Licenças Ativas:</Text>
             <Text style={styles.statusValue}>{empresa?.quantidade_licencas || 1}</Text>
           </View>
 
@@ -384,7 +393,7 @@ export default function ConfiguracoesScreen() {
             onPress={() => router.push('/selecionar-licencas')}
           >
             <Ionicons name="layers" size={18} color="#fff" style={styles.buttonIcon} />
-            <Text style={styles.licencasButtonText}>Selecionar LicenÃ§as</Text>
+            <Text style={styles.licencasButtonText}>Selecionar Licenças</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -420,7 +429,7 @@ export default function ConfiguracoesScreen() {
                   style={styles.input}
                   value={prestadorNome}
                   onChangeText={setPrestadorNome}
-                  placeholder="Seu nome ou do responsÃ¡vel"
+                  placeholder="Seu nome ou do responsável"
                 />
               </View>
 
@@ -430,7 +439,7 @@ export default function ConfiguracoesScreen() {
                   style={styles.input}
                   value={prestadorEmpresa}
                   onChangeText={setPrestadorEmpresa}
-                  placeholder="Nome da empresa (obrigatÃ³rio)"
+                  placeholder="Nome da empresa (obrigatório)"
                 />
               </View>
 
@@ -506,7 +515,7 @@ export default function ConfiguracoesScreen() {
 
               {prestadorConfig.nome && (
                 <View style={styles.infoBox}>
-                  <Text style={styles.infoLabel}>ResponsÃ¡vel:</Text>
+                  <Text style={styles.infoLabel}>Responsável:</Text>
                   <Text style={styles.infoValue}>{prestadorConfig.nome}</Text>
                 </View>
               )}
@@ -519,13 +528,13 @@ export default function ConfiguracoesScreen() {
               )}
               
               <Text style={styles.helpText}>
-                â„¹ï¸ Esses dados serÃ£o exibidos no topo do relatÃ³rio PDF gerado ao finalizar os sinistros.
+                Esses dados serão exibidos no topo do relatório PDF gerado ao finalizar os sinistros.
               </Text>
             </>
           )}
         </View>
 
-        {/* AÃ§Ãµes */}
+        {/* Ações */}
         <View style={styles.section}>
           <TouchableOpacity 
             style={styles.logoutButton}
@@ -539,10 +548,11 @@ export default function ConfiguracoesScreen() {
 
         <View style={styles.footer}>
           <Text style={styles.footerText}>Check Guincho v1.0.0</Text>
-          <Text style={styles.footerText}>Â© 2026 Todos os direitos reservados</Text>
+          <Text style={styles.footerText}>© 2026 Todos os direitos reservados</Text>
         </View>
       </View>
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -551,8 +561,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
+  scrollContent: {
+    flexGrow: 1,
+  },
   content: {
     padding: 20,
+    paddingTop: 24,
   },
   title: {
     fontSize: 28,
