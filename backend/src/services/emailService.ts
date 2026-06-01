@@ -5,18 +5,20 @@ dotenv.config();
 
 const emailPort = parseInt(process.env.EMAIL_PORT || '587', 10);
 
-const transporter = nodemailer.createTransport({
-  host: process.env.EMAIL_HOST,
-  port: emailPort,
-  secure: emailPort === 465,
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASSWORD
-  },
-  connectionTimeout: 10000,
-  greetingTimeout: 10000,
-  socketTimeout: 15000,
-});
+const createTransporter = (port = emailPort) => (
+  nodemailer.createTransport({
+    host: process.env.EMAIL_HOST,
+    port,
+    secure: port === 465,
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASSWORD
+    },
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 15000,
+  })
+);
 
 interface EmailOptions {
   to: string;
@@ -47,6 +49,23 @@ const toEmailErrorResult = (error: any): EmailResult => ({
   command: error?.command,
 });
 
+const shouldRetryGmailSecurePort = (error: any) => (
+  String(process.env.EMAIL_HOST || '').toLowerCase() === 'smtp.gmail.com' &&
+  emailPort === 587 &&
+  error?.code === 'ETIMEDOUT' &&
+  error?.command === 'CONN'
+);
+
+const sendWithPort = async ({ to, subject, html }: EmailOptions, port = emailPort) => {
+  const transporter = createTransporter(port);
+  await transporter.sendMail({
+    from: process.env.EMAIL_FROM,
+    to,
+    subject,
+    html
+  });
+};
+
 export const sendEmailDetailed = async ({ to, subject, html }: EmailOptions): Promise<EmailResult> => {
   const missingConfig = getMissingEmailConfig();
   if (missingConfig.length) {
@@ -61,16 +80,24 @@ export const sendEmailDetailed = async ({ to, subject, html }: EmailOptions): Pr
   }
 
   try {
-    await transporter.sendMail({
-      from: process.env.EMAIL_FROM,
-      to,
-      subject,
-      html
-    });
+    await sendWithPort({ to, subject, html });
     
     console.log(`✅ Email enviado para ${to}`);
     return { success: true };
   } catch (error) {
+    if (shouldRetryGmailSecurePort(error)) {
+      console.warn('Timeout no Gmail porta 587. Tentando fallback na porta 465.');
+      try {
+        await sendWithPort({ to, subject, html }, 465);
+        console.log(`✅ Email enviado para ${to} usando fallback SMTP 465`);
+        return { success: true };
+      } catch (fallbackError) {
+        const result = toEmailErrorResult(fallbackError);
+        console.error('Erro ao enviar email no fallback SMTP 465:', result);
+        return result;
+      }
+    }
+
     const result = toEmailErrorResult(error);
     console.error('Erro ao enviar email:', result);
     return result;
@@ -345,6 +372,7 @@ interface EmailComAnexo extends EmailOptions {
 
 export const sendEmailComAnexo = async ({ to, subject, html, attachments }: EmailComAnexo): Promise<boolean> => {
   try {
+    const transporter = createTransporter();
     await transporter.sendMail({
       from: process.env.EMAIL_FROM,
       to,
