@@ -844,15 +844,16 @@ export const atualizarEmpresa = async (req: Request, res: Response) => {
   try {
     console.log('📝 [ATUALIZAR] Request recebido');
     const empresaId = req.empresaId;
-    const { nome, email } = req.body;
+    const nomeNormalizado = String(req.body.nome || '').trim();
+    const emailNormalizado = String(req.body.email || '').trim().toLowerCase();
 
-    console.log('📝 [ATUALIZAR] empresaId:', empresaId, 'nome:', nome, 'email:', email);
+    console.log('📝 [ATUALIZAR] empresaId:', empresaId, 'nome:', nomeNormalizado, 'email:', emailNormalizado);
 
     if (!empresaId) {
       return res.status(401).json({ error: 'Não autenticado' });
     }
 
-    if (!nome || !email) {
+    if (!nomeNormalizado || !emailNormalizado) {
       return res.status(400).json({ error: 'Nome e email são obrigatórios' });
     }
 
@@ -862,28 +863,21 @@ export const atualizarEmpresa = async (req: Request, res: Response) => {
     }
 
     // Verificar se email já existe em outra empresa
-    if (email !== empresa.email) {
-      const emailExistente = await Empresa.findOne({ where: { email } });
+    if (emailNormalizado !== empresa.email) {
+      const emailExistente = await Empresa.findOne({ where: { email: emailNormalizado } });
       if (emailExistente) {
         return res.status(400).json({ error: 'Email já cadastrado em outra empresa' });
       }
     }
 
-    await empresa.update({ nome, email });
+    await empresa.update({ nome: nomeNormalizado, email: emailNormalizado });
     
-    console.log(`✅ [ATUALIZAR] Empresa ${empresaId} atualizada: ${nome} | ${email}`);
+    console.log(`✅ [ATUALIZAR] Empresa ${empresaId} atualizada: ${empresa.nome} | ${empresa.email}`);
     
     return res.json({
       success: true,
       message: 'Empresa atualizada com sucesso',
-      empresa: {
-        id: empresa.id,
-        nome: empresa.nome,
-        email: empresa.email,
-        codigo: empresa.codigo,
-        ativo: empresa.ativo,
-        diasRestantes: empresa.diasRestantes()
-      }
+      empresa: toEmpresaResponse(empresa)
     });
   } catch (error) {
     console.error('Erro ao atualizar empresa:', error);
