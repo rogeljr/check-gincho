@@ -76,6 +76,18 @@ const toEmpresaResponse = (empresa: Empresa) => ({
   login_responsavel: empresa.login_responsavel || empresa.cnpj,
 });
 
+const loginAdministrador = (empresa: Empresa, login: string): boolean => {
+  const loginNormalizado = normalizarLogin(login);
+  const digitosLogin = somenteDigitos(loginNormalizado);
+
+  return (
+    loginNormalizado === normalizarLogin(empresa.login_responsavel) ||
+    loginNormalizado === normalizarLogin(empresa.codigo) ||
+    digitosLogin === somenteDigitos(empresa.cnpj) ||
+    (!!empresa.cpf_responsavel && digitosLogin === somenteDigitos(empresa.cpf_responsavel))
+  );
+};
+
 export const logout = async (req: Request, res: Response) => {
   try {
     const token = req.headers.authorization?.replace('Bearer ', '');
@@ -251,6 +263,7 @@ export const cadastrarEmpresa = async (req: Request, res: Response) => {
       email: emailNormalizado,
       senha: senhaHash,
       cpf_responsavel: cpfLimpo,
+      login_responsavel: cpfLimpo,
       quantidade_licencas: licencas,
       data_inicio_trial: agora,
       data_expiracao: expiracao,
@@ -299,6 +312,7 @@ export const cadastrarEmpresa = async (req: Request, res: Response) => {
       message: 'Empresa cadastrada e ativada com sucesso! Login liberado.',
       codigo: codigoFinal,
       email,
+      login_responsavel: cpfLimpo,
       tem_direito_trial: temDireitoTrial
     });
   } catch (error) {
@@ -623,8 +637,8 @@ export const login = async (req: Request, res: Response) => {
 
     console.log('[LOGIN] Tentativa de login:', { codigo, login: login || undefined, device_id });
 
-    if (!codigo || !login || !senha) {
-      return res.status(400).json({ error: 'Codigo da empresa, login e senha sao obrigatorios' });
+    if (!codigo || !senha) {
+      return res.status(400).json({ error: 'Codigo da empresa e senha sao obrigatorios' });
     }
 
     if (!device_id) {
@@ -635,6 +649,10 @@ export const login = async (req: Request, res: Response) => {
 
     if (!empresa) {
       return res.status(401).json({ error: 'Codigo ou senha invalidos' });
+    }
+
+    if (!login) {
+      login = normalizarLogin(empresa.login_responsavel || empresa.cpf_responsavel || empresa.cnpj || empresa.codigo);
     }
 
     if (!empresa.ativo) {
@@ -652,8 +670,7 @@ export const login = async (req: Request, res: Response) => {
     let senhaHash = empresa.senha;
     let usuario: Usuario | null = null;
     let role = 'admin';
-    const loginResponsavel = normalizarLogin(empresa.login_responsavel || empresa.cnpj);
-    const loginEhDono = login === loginResponsavel || somenteDigitos(login) === somenteDigitos(empresa.cnpj) || login === normalizarLogin(empresa.codigo);
+    const loginEhDono = loginAdministrador(empresa, login);
 
     if (!loginEhDono) {
       usuario = await Usuario.findOne({
@@ -702,7 +719,7 @@ export const login = async (req: Request, res: Response) => {
         id: null,
         empresa_id: empresa.id,
         nome: empresa.nome,
-        login: empresa.login_responsavel || empresa.cnpj,
+        login: empresa.login_responsavel || empresa.cpf_responsavel || empresa.cnpj,
         email: empresa.email,
         role: 'admin',
         ativo: true,

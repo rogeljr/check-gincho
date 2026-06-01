@@ -158,7 +158,7 @@ export default function CadastroEmpresaScreen() {
       
       Alert.alert(
         'Cadastro Realizado!',
-        `Empresa cadastrada com sucesso!\n\nCódigo: ${response.codigo}\n\nLicenças: ${quantidadeLicencas}\nValor mensal: R$ ${valorMensal.toFixed(2)}\n\nLogin liberado com a senha cadastrada.`,
+        `Empresa cadastrada com sucesso!\n\nCódigo: ${response.codigo}\nLogin: ${response.login_responsavel || formData.cpf_responsavel}\n\nLicenças: ${quantidadeLicencas}\nValor mensal: R$ ${valorMensal.toFixed(2)}\n\nLogin liberado com a senha cadastrada.`,
         [
           {
             text: 'OK',
@@ -393,7 +393,7 @@ export default function CadastroEmpresaScreen() {
               🎉 7 dias grátis para testar!
             </Text>
             <Text style={styles.trialSubtext}>
-              Após o período de teste: R$ 35,00/usuário/mês
+              Após o período de teste: R$ {precoUnitario.toFixed(2)}/licença/mês
             </Text>
           </View>
         </View>

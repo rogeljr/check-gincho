@@ -47,6 +47,7 @@ export interface CadastrarEmpresaResponse {
   message: string;
   codigo: string;
   email: string;
+  login_responsavel?: string;
 }
 
 export interface DefinirSenhaResponse {
