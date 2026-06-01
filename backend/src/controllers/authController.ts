@@ -303,8 +303,9 @@ export const cadastrarEmpresa = async (req: Request, res: Response) => {
     });
 
     if (!emailEnviado) {
+      await TrialUsage.destroy({ where: { empresa_id: empresa.id } });
       await empresa.destroy();
-      return res.status(500).json({ error: 'Nao foi possivel enviar o email de validacao. Confira o email e tente novamente.' });
+      return res.status(502).json({ error: 'Nao foi possivel enviar o email de validacao. Confira o email e tente novamente.' });
     }
 
     console.log('[CADASTRO] Email enviado com sucesso');
@@ -312,7 +313,7 @@ export const cadastrarEmpresa = async (req: Request, res: Response) => {
     return res.status(201).json({
       message: 'Empresa cadastrada com sucesso! Verifique seu email para validar a conta.',
       codigo: codigoFinal,
-      email,
+      email: emailNormalizado,
       login_responsavel: cpfLimpo,
       tem_direito_trial: temDireitoTrial
     });

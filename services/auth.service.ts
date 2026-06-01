@@ -57,6 +57,15 @@ export interface DefinirSenhaResponse {
 }
 
 class AuthService {
+  private getApiErrorMessage(error: any, fallback: string): string {
+    return (
+      error.response?.data?.details ||
+      error.response?.data?.error ||
+      error.message ||
+      fallback
+    );
+  }
+
   // Gerar ou recuperar device_id persistente
   private async getDeviceId(): Promise<string> {
     try {
@@ -114,7 +123,7 @@ class AuthService {
       });
       return response;
     } catch (error: any) {
-      throw new Error(error.response?.data?.error || 'Erro ao cadastrar empresa');
+      throw new Error(this.getApiErrorMessage(error, 'Erro ao cadastrar empresa'));
     }
   }
   
@@ -131,7 +140,7 @@ class AuthService {
       const response = await apiService.post<CadastrarEmpresaResponse>(ENDPOINTS.CADASTRAR_EMPRESA, data);
       return response;
     } catch (error: any) {
-      throw new Error(error.response?.data?.error || 'Erro ao cadastrar empresa');
+      throw new Error(this.getApiErrorMessage(error, 'Erro ao cadastrar empresa'));
     }
   }
   
