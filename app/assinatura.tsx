@@ -29,6 +29,8 @@ export default function AssinaturaScreen() {
   const [tempoRestante, setTempoRestante] = useState<number | null>(null);
   const intervalRef = useRef<any>(null);
   const pollingRef = useRef<any>(null);
+  const diasRestantes = empresa?.diasRestantes ?? 0;
+  const pagamentoDisponivel = diasRestantes <= 0;
 
   const carregarPagamentos = useCallback(async () => {
     try {
@@ -172,6 +174,14 @@ export default function AssinaturaScreen() {
 
   const handleCriarPagamento = async () => {
     try {
+      if (!pagamentoDisponivel) {
+        Alert.alert(
+          'Renovação ainda indisponível',
+          `Sua assinatura ainda tem ${diasRestantes} dia(s) restante(s). A renovação ficará disponível na data da próxima cobrança.`
+        );
+        return;
+      }
+
       setCriandoPagamento(true);
       const quantidadeLicencas = empresa?.quantidade_licencas || 1;
       const pref = await pagamentoService.selecionarLicencas(quantidadeLicencas);
@@ -247,12 +257,12 @@ export default function AssinaturaScreen() {
 
       <View style={styles.statusCard}>
         <Text style={styles.statusLabel}>Status da Assinatura</Text>
-        <Text style={[styles.statusValue, { color: (empresa?.diasRestantes ?? 0) > 0 ? '#2E7D32' : '#C62828' }]}
+        <Text style={[styles.statusValue, { color: diasRestantes > 0 ? '#2E7D32' : '#C62828' }]}
         >
-          {(empresa?.diasRestantes ?? 0) > 0 ? 'Ativa' : 'Expirada'}
+          {diasRestantes > 0 ? 'Ativa' : 'Expirada'}
         </Text>
         <Text style={styles.statusInfo}>
-          {empresa?.diasRestantes ?? 0} dias restantes
+          {diasRestantes} dias restantes
         </Text>
 
         {empresa?.diasRestantes !== undefined && empresa.diasRestantes <= 3 && (
@@ -271,16 +281,24 @@ export default function AssinaturaScreen() {
         </Text>
 
         <TouchableOpacity
-          style={[styles.payButton, criandoPagamento && styles.buttonDisabled]}
+          style={[styles.payButton, (criandoPagamento || !pagamentoDisponivel) && styles.buttonDisabled]}
           onPress={handleCriarPagamento}
-          disabled={criandoPagamento}
+          disabled={criandoPagamento || !pagamentoDisponivel}
         >
           {criandoPagamento ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.payButtonText}>Pagar / Renovar Assinatura</Text>
+            <Text style={styles.payButtonText}>
+              {pagamentoDisponivel ? 'Pagar / Renovar Assinatura' : 'Disponível na próxima cobrança'}
+            </Text>
           )}
         </TouchableOpacity>
+
+        {!pagamentoDisponivel && (
+          <Text style={styles.paymentLockedText}>
+            A cobrança só pode ser gerada quando a assinatura vencer.
+          </Text>
+        )}
 
         {verificandoPagamento && tempoRestante !== null && (
           <View style={styles.verificationBox}>
@@ -421,6 +439,12 @@ const styles = StyleSheet.create({
   refreshButtonText: {
     color: '#27AE60',
     fontWeight: '600',
+  },
+  paymentLockedText: {
+    color: '#777',
+    fontSize: 12,
+    marginTop: 8,
+    textAlign: 'center',
   },
   listCard: {
     backgroundColor: '#fff',

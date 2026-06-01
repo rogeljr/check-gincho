@@ -153,12 +153,22 @@ const getPagamentoErrorResponse = (error: any) => {
   };
 };
 
+const getPaymentNotDueResponse = (diasRestantes: number) => ({
+  error: `Sua assinatura ainda tem ${diasRestantes} dia(s) restante(s). A renovação só fica disponível na data da próxima cobrança.`
+});
+
 // Criar preferência de pagamento (PIX ou Cartão)
 export const criarPreferencia = async (req: Request, res: Response) => {
   try {
     const empresa = req.empresa!;
     ensureMercadoPagoConfigured();
     console.log('📝 [PAGAMENTO] Iniciando criarPreferencia para empresa:', empresa.id);
+
+    const diasRestantes = empresa.diasRestantes();
+    if (diasRestantes > 0) {
+      console.log('⚠️ [PAGAMENTO] Renovação bloqueada antes do vencimento:', diasRestantes);
+      return res.status(400).json(getPaymentNotDueResponse(diasRestantes));
+    }
     
     // Valor: R$5 por mês (teste)
     const valorMensal = 5.00;
@@ -252,13 +262,11 @@ export const selecionarLicencas = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'quantidade_licencas deve estar entre 1 e 10' });
     }
 
-    // Verificar se tem assinatura ativa com mais de 7 dias restantes
+    // Só permite gerar nova cobrança quando chegar na data prevista da próxima cobrança.
     const diasRestantes = empresa.diasRestantes();
-    if (diasRestantes > 7) {
-      console.log('⚠️ [PAGAMENTO] Assinatura ativa com muitos dias restantes:', diasRestantes);
-      return res.status(400).json({ 
-        error: `Você ainda tem ${diasRestantes} dias restantes. Só é possível alterar ou renovar licenças nos últimos 7 dias antes da renovação.` 
-      });
+    if (diasRestantes > 0) {
+      console.log('⚠️ [PAGAMENTO] Renovação bloqueada antes do vencimento:', diasRestantes);
+      return res.status(400).json(getPaymentNotDueResponse(diasRestantes));
     }
 
     // Calcular valor: R$5 por licença
