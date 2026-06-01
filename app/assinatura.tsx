@@ -11,15 +11,15 @@ import {
   Linking,
   AppState,
 } from 'react-native';
-import { useRouter } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
 import authService from '../services/auth.service';
 import pagamentoService, { Pagamento } from '../services/pagamento.service';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+const RENEWAL_WINDOW_DAYS = 3;
+
 export default function AssinaturaScreen() {
   const { empresa, updateEmpresa } = useAuth();
-  const router = useRouter();
   const insets = useSafeAreaInsets();
   const [pagamentos, setPagamentos] = useState<Pagamento[]>([]);
   const [loadingPagamentos, setLoadingPagamentos] = useState(true);
@@ -30,7 +30,7 @@ export default function AssinaturaScreen() {
   const intervalRef = useRef<any>(null);
   const pollingRef = useRef<any>(null);
   const diasRestantes = empresa?.diasRestantes ?? 0;
-  const pagamentoDisponivel = diasRestantes <= 0;
+  const pagamentoDisponivel = diasRestantes <= RENEWAL_WINDOW_DAYS;
 
   const carregarPagamentos = useCallback(async () => {
     try {
@@ -93,15 +93,19 @@ export default function AssinaturaScreen() {
           console.log('📊 Dados atualizados verificados:', empresaAtualizada);
           
           if (empresaAtualizada?.diasRestantes && empresaAtualizada.diasRestantes > 0) {
-            // Pagamento foi aprovado! Redireciona direto
-            console.log('✅ REDIRECIONANDO PARA HOME - router.push');
-            router.push('/(tabs)');
+            // Pagamento aprovado: atualiza os dados e permanece nesta tela.
+            console.log('Pagamento confirmado na atualização manual');
+            Alert.alert(
+              'Pagamento confirmado',
+              'Os dados da assinatura foram atualizados.',
+              [{ text: 'OK' }]
+            );
             return;
           } else {
             // Ainda não foi aprovado
             Alert.alert(
               'ℹ️ Atualizando',
-              'Os dados foram atualizados. Se o pagamento for confirmado, você será redirecionado automaticamente em alguns minutos.',
+              'Os dados foram atualizados. Se o pagamento for confirmado, as informações serão atualizadas nesta tela.',
               [{ text: 'OK' }]
             );
           }
@@ -154,7 +158,7 @@ export default function AssinaturaScreen() {
           Alert.alert(
             '✅ Pagamento Detectado!',
             'Seu pagamento foi confirmado e a assinatura foi renovada automaticamente!',
-            [{ text: 'OK', onPress: () => router.replace('/(tabs)') }]
+            [{ text: 'OK' }]
           );
           return;
         }
@@ -177,7 +181,7 @@ export default function AssinaturaScreen() {
       if (!pagamentoDisponivel) {
         Alert.alert(
           'Renovação ainda indisponível',
-          `Sua assinatura ainda tem ${diasRestantes} dia(s) restante(s). A renovação ficará disponível na data da próxima cobrança.`
+          `Sua assinatura ainda tem ${diasRestantes} dia(s) restante(s). A renovação ficará disponível quando faltarem até ${RENEWAL_WINDOW_DAYS} dias para vencer.`
         );
         return;
       }
@@ -289,14 +293,14 @@ export default function AssinaturaScreen() {
             <ActivityIndicator color="#fff" />
           ) : (
             <Text style={styles.payButtonText}>
-              {pagamentoDisponivel ? 'Pagar / Renovar Assinatura' : 'Disponível na próxima cobrança'}
+              {pagamentoDisponivel ? 'Pagar / Renovar Assinatura' : 'Disponível 3 dias antes do vencimento'}
             </Text>
           )}
         </TouchableOpacity>
 
         {!pagamentoDisponivel && (
           <Text style={styles.paymentLockedText}>
-            A cobrança só pode ser gerada quando a assinatura vencer.
+            A cobrança será liberada quando faltarem até 3 dias para vencer.
           </Text>
         )}
 

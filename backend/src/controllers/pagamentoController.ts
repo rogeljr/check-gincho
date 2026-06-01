@@ -8,6 +8,7 @@ import Empresa from '../models/Empresa';
 const paymentClient = new Payment(mercadoPagoConfig);
 const preferenceClient = new Preference(mercadoPagoConfig);
 const PENDING_PAYMENT_WINDOW_MS = 2 * 60 * 60 * 1000;
+const PAYMENT_RENEWAL_WINDOW_DAYS = 3;
 
 const getPublicBaseUrl = (req: Request) => {
   const backendUrl = process.env.BACKEND_URL?.replace(/\/$/, '');
@@ -154,7 +155,7 @@ const getPagamentoErrorResponse = (error: any) => {
 };
 
 const getPaymentNotDueResponse = (diasRestantes: number) => ({
-  error: `Sua assinatura ainda tem ${diasRestantes} dia(s) restante(s). A renovação só fica disponível na data da próxima cobrança.`
+  error: `Sua assinatura ainda tem ${diasRestantes} dia(s) restante(s). A renovação fica disponível quando faltarem até ${PAYMENT_RENEWAL_WINDOW_DAYS} dias para vencer.`
 });
 
 // Criar preferência de pagamento (PIX ou Cartão)
@@ -165,7 +166,7 @@ export const criarPreferencia = async (req: Request, res: Response) => {
     console.log('📝 [PAGAMENTO] Iniciando criarPreferencia para empresa:', empresa.id);
 
     const diasRestantes = empresa.diasRestantes();
-    if (diasRestantes > 0) {
+    if (diasRestantes > PAYMENT_RENEWAL_WINDOW_DAYS) {
       console.log('⚠️ [PAGAMENTO] Renovação bloqueada antes do vencimento:', diasRestantes);
       return res.status(400).json(getPaymentNotDueResponse(diasRestantes));
     }
@@ -262,9 +263,9 @@ export const selecionarLicencas = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'quantidade_licencas deve estar entre 1 e 10' });
     }
 
-    // Só permite gerar nova cobrança quando chegar na data prevista da próxima cobrança.
+    // Só permite gerar nova cobrança perto da data prevista da próxima cobrança.
     const diasRestantes = empresa.diasRestantes();
-    if (diasRestantes > 0) {
+    if (diasRestantes > PAYMENT_RENEWAL_WINDOW_DAYS) {
       console.log('⚠️ [PAGAMENTO] Renovação bloqueada antes do vencimento:', diasRestantes);
       return res.status(400).json(getPaymentNotDueResponse(diasRestantes));
     }
