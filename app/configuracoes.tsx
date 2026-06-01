@@ -45,6 +45,7 @@ export default function ConfiguracoesScreen() {
   const [prestadorTelefone, setPrestadorTelefone] = useState('');
   const [logoPreview, setLogoPreview] = useState<string | undefined>();
   const [logoRemovida, setLogoRemovida] = useState(false);
+  const [logoAlterada, setLogoAlterada] = useState(false);
   const [loadingPrestador, setLoadingPrestador] = useState(false);
 
   useEffect(() => {
@@ -73,12 +74,14 @@ export default function ConfiguracoesScreen() {
         setPrestadorEmpresa(merged.empresa || empresa?.nome || '');
         setPrestadorTelefone(merged.telefone || '');
         setLogoPreview(merged.logo);
+        setLogoAlterada(false);
       } else {
         setPrestadorConfig(serverConfig);
         setPrestadorNome(serverConfig.nome || '');
         setPrestadorEmpresa(serverConfig.empresa || empresa?.nome || '');
         setPrestadorTelefone(serverConfig.telefone || '');
         setLogoPreview(serverConfig.logo);
+        setLogoAlterada(false);
       }
     } catch (error) {
       console.warn('Erro ao carregar config do prestador:', error);
@@ -112,6 +115,7 @@ export default function ConfiguracoesScreen() {
           const dataUri = `data:${mimeType};base64,${base64}`;
           setLogoPreview(dataUri);
           setLogoRemovida(false);
+          setLogoAlterada(true);
           
           // Atualizar config
           const novaConfig: PrestadorConfig = {
@@ -130,6 +134,7 @@ export default function ConfiguracoesScreen() {
   const removerLogo = () => {
     setLogoPreview(undefined);
     setLogoRemovida(true);
+    setLogoAlterada(false);
     const novaConfig: PrestadorConfig = {
       ...prestadorConfig,
       logo: undefined,
@@ -155,7 +160,7 @@ export default function ConfiguracoesScreen() {
       const response = await authService.atualizarPrestador({
         prestador_nome: novaConfig.nome,
         prestador_telefone: novaConfig.telefone,
-        logo_base64: logoPreview?.startsWith('data:') ? logoPreview : undefined,
+        logo_base64: logoAlterada && logoPreview?.startsWith('data:') ? logoPreview : undefined,
         remover_logo: logoRemovida,
       });
 
@@ -169,11 +174,16 @@ export default function ConfiguracoesScreen() {
       setPrestadorConfig(configParaSalvar);
       setLogoPreview(configParaSalvar.logo);
       setLogoRemovida(false);
+      setLogoAlterada(false);
       await updateEmpresa?.();
       Alert.alert('Sucesso', 'Dados do prestador salvos com sucesso');
       setEditandoPrestador(false);
-    } catch (error) {
-      Alert.alert('Erro', 'Erro ao salvar dados do prestador');
+    } catch (error: any) {
+      const mensagem =
+        error?.response?.data?.error ||
+        error?.message ||
+        'Erro ao salvar dados do prestador';
+      Alert.alert('Erro', mensagem);
       console.error(error);
     } finally {
       setLoadingPrestador(false);

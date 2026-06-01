@@ -76,6 +76,12 @@ const toEmpresaResponse = (empresa: Empresa) => ({
   login_responsavel: empresa.login_responsavel || empresa.cnpj,
 });
 
+const cloudinaryConfigurado = () => (
+  Boolean(process.env.CLOUDINARY_CLOUD_NAME) &&
+  Boolean(process.env.CLOUDINARY_API_KEY) &&
+  Boolean(process.env.CLOUDINARY_API_SECRET)
+);
+
 const loginAdministrador = (empresa: Empresa, login: string): boolean => {
   const loginNormalizado = normalizarLogin(login);
   const digitosLogin = somenteDigitos(loginNormalizado);
@@ -901,6 +907,12 @@ export const atualizarPrestador = async (req: Request, res: Response) => {
 
     if (prestador_telefone !== undefined) {
       empresa.prestador_telefone = String(prestador_telefone || '').trim() || undefined;
+    }
+
+    if (logo_base64 && !cloudinaryConfigurado()) {
+      return res.status(400).json({
+        error: 'Upload de logo não configurado no servidor. Salve os dados sem alterar a logo ou configure o Cloudinary.'
+      });
     }
 
     if (remover_logo) {
