@@ -118,12 +118,24 @@ export default function SinistrosOfflineScreen() {
             observacoes: sinistro.observacoes,
           };
 
-          const response = await apiService.post<{ id: number }>(
-            ENDPOINTS.SINISTROS,
-            sinistroData
-          );
-          
-          const servidorId = response.id;
+          let servidorId = sinistro.servidor_id;
+
+          if (servidorId) {
+            await apiService.put(`sinistros/${servidorId}`, sinistroData);
+          } else {
+            const response = await apiService.post<{ id: number }>(
+              ENDPOINTS.SINISTROS,
+              sinistroData
+            );
+
+            servidorId = response.id;
+            if (sinistro.id) {
+              await databaseService.atualizarSinistro(sinistro.id, {
+                servidor_id: servidorId,
+                sincronizado: false,
+              });
+            }
+          }
 
           // 2️⃣ ENVIAR FOTOS
           if (sinistro.id) {
@@ -156,7 +168,7 @@ export default function SinistrosOfflineScreen() {
               });
             } catch (assinError) {
               console.warn('Erro ao enviar assinatura:', assinError);
-              // Continua mesmo assim
+              throw assinError;
             }
           }
 

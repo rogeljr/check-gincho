@@ -96,6 +96,8 @@ export default function SinistrosPendentesScreen() {
       };
 
       // Se tem servidor_id, é atualização
+      let sinistroCriadoAgora = false;
+
       if (sinistro.servidor_id) {
         await apiService.put(`sinistros/${sinistro.servidor_id}`, sinistroData);
         
@@ -113,12 +115,18 @@ export default function SinistrosPendentesScreen() {
             });
           } catch (error) {
             console.warn('Erro ao sincronizar assinatura:', error);
+            throw error;
           }
         }
       } else {
         // Se não tem, é criação
         const response = await apiService.post('sinistros', sinistroData);
         sinistro.servidor_id = (response as any).id;
+        sinistroCriadoAgora = true;
+        await databaseService.atualizarSinistro(sinistro.id!, {
+          servidor_id: sinistro.servidor_id,
+          sincronizado: false,
+        });
       }
 
       // Sincronizar fotos
@@ -136,6 +144,17 @@ export default function SinistrosPendentesScreen() {
             console.warn('Erro ao sincronizar foto:', error);
           }
         }
+      }
+
+      if (sinistroCriadoAgora && sinistro.assinatura_base64) {
+        const assinaturaDataUri = sinistro.assinatura_base64.startsWith('data:')
+          ? sinistro.assinatura_base64
+          : `data:image/png;base64,${sinistro.assinatura_base64}`;
+
+        await apiService.post(`sinistros/${sinistro.servidor_id}/assinatura`, {
+          assinatura_base64: assinaturaDataUri,
+          nome: sinistro.nome_cliente
+        });
       }
 
       // Marcar como sincronizado e salvar servidor_id

@@ -1,13 +1,11 @@
 import { Request, Response } from 'express';
 import { Payment, Preference } from 'mercadopago';
-import { Op } from 'sequelize';
 import mercadoPagoConfig from '../config/mercadopago';
 import Pagamento from '../models/Pagamento';
 import Empresa from '../models/Empresa';
 
 const paymentClient = new Payment(mercadoPagoConfig);
 const preferenceClient = new Preference(mercadoPagoConfig);
-const PENDING_PAYMENT_WINDOW_MS = 2 * 60 * 60 * 1000;
 const PAYMENT_RENEWAL_WINDOW_DAYS = 3;
 
 const getPublicBaseUrl = (req: Request) => {
@@ -64,10 +62,7 @@ const findRecentPendingPayment = async (empresaId: number) => {
   return Pagamento.findOne({
     where: {
       empresa_id: empresaId,
-      status: 'pending',
-      createdAt: {
-        [Op.gte]: new Date(Date.now() - PENDING_PAYMENT_WINDOW_MS)
-      }
+      status: 'pending'
     },
     order: [['createdAt', 'DESC']]
   });
