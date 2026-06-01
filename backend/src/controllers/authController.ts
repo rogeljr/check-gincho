@@ -254,8 +254,6 @@ export const cadastrarEmpresa = async (req: Request, res: Response) => {
     console.log('🔐 [CADASTRO] Senha hashada');
     
     // Criar empresa (já com senha, mas NÃO VALIDADA)
-    const agora = new Date();
-    const expiracao = new Date(agora.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 dias
     const empresa = await Empresa.create({
       nome,
       cnpj: cnpjFormatado,
@@ -265,8 +263,6 @@ export const cadastrarEmpresa = async (req: Request, res: Response) => {
       cpf_responsavel: cpfLimpo,
       login_responsavel: cpfLimpo,
       quantidade_licencas: licencas,
-      data_inicio_trial: agora,
-      data_expiracao: expiracao,
       ativo: false // Será ativado após validação por email
     });
     
@@ -282,34 +278,33 @@ export const cadastrarEmpresa = async (req: Request, res: Response) => {
       console.log('📝 [CADASTRO] Trial registrado para CPF e dispositivo');
     }
     
-    // --- COMENTADO: Envio de email de validação ---
-    // // Gerar token de validação (válido por 24h)
-    // const tokenValidacao = jwt.sign(
-    //   { empresaId: empresa.id, action: 'validate_account' },
-    //   process.env.JWT_SECRET!,
-    //   { expiresIn: '24h' }
-    // );
-    // console.log('🎫 [CADASTRO] Token de validação gerado');
-    // const backendUrl = process.env.BACKEND_URL || `http://192.168.1.5:8080`;
-    // const validacaoUrl = `${backendUrl}/api/auth/validar-conta?token=${tokenValidacao}`;
-    // console.log('📧 [CADASTRO] Tentando enviar email para:', email);
-    // const emailEnviado = await sendEmail({
-    //   to: email,
-    //   subject: 'Check Guincho - Confirme sua conta',
-    //   html: emailValidacaoConta(nome, codigoFinal, validacaoUrl)
-    // });
-    // if (emailEnviado) {
-    //   console.log('✅ [CADASTRO] Email enviado com sucesso');
-    // } else {
-    //   console.log('⚠️ [CADASTRO] Falha ao enviar email, mas conta foi criada');
-    // }
+    // Enviar email de validacao. A empresa so fica ativa apos clicar no link.
+    const tokenValidacao = jwt.sign(
+      { empresaId: empresa.id, action: 'validate_account', temDireitoTrial },
+      process.env.JWT_SECRET!,
+      { expiresIn: '24h' }
+    );
+    console.log('[CADASTRO] Token de validacao gerado');
 
-    // Ativar empresa automaticamente
-    await empresa.update({ ativo: true });
-    console.log('✅ [CADASTRO] Empresa ativada automaticamente (teste)');
+    const backendUrl = process.env.BACKEND_URL || 'https://check-gincho-production.up.railway.app';
+    const validacaoUrl = `${backendUrl}/api/auth/validar-conta?token=${tokenValidacao}`;
+    console.log('[CADASTRO] Tentando enviar email para:', emailNormalizado);
+
+    const emailEnviado = await sendEmail({
+      to: emailNormalizado,
+      subject: 'Check Guincho - Confirme sua conta',
+      html: emailValidacaoConta(nome, codigoFinal, validacaoUrl)
+    });
+
+    if (!emailEnviado) {
+      await empresa.destroy();
+      return res.status(500).json({ error: 'Nao foi possivel enviar o email de validacao. Confira o email e tente novamente.' });
+    }
+
+    console.log('[CADASTRO] Email enviado com sucesso');
 
     return res.status(201).json({
-      message: 'Empresa cadastrada e ativada com sucesso! Login liberado.',
+      message: 'Empresa cadastrada com sucesso! Verifique seu email para validar a conta.',
       codigo: codigoFinal,
       email,
       login_responsavel: cpfLimpo,
@@ -352,8 +347,10 @@ export const validarConta = async (req: Request, res: Response) => {
     }
 
     // Ativar empresa e iniciar trial de 7 dias
+    const agora = new Date();
     empresa.ativo = true;
-    empresa.data_inicio_trial = new Date(); // ✅ Iniciar trial agora
+    empresa.data_inicio_trial = agora; // Iniciar trial agora
+    empresa.data_expiracao = new Date(agora.getTime() + 7 * 24 * 60 * 60 * 1000);
     await empresa.save();
 
     console.log('✅ [VALIDAÇÃO] Conta ativada e trial iniciado:', { empresaId: empresa.id, codigo: empresa.codigo });
@@ -432,12 +429,15 @@ export const validarContaViaBrowser = async (req: Request, res: Response) => {
         const temDireitoTrial = decoded.temDireitoTrial !== false;
         
         if (temDireitoTrial) {
-          empresa.data_inicio_trial = new Date(); // ✅ Trial de 7 dias
+          const agora = new Date();
+          empresa.data_inicio_trial = agora; // Trial de 7 dias
+          empresa.data_expiracao = new Date(agora.getTime() + 7 * 24 * 60 * 60 * 1000);
           console.log('✅ [VALIDAÇÃO] Trial de 7 dias ativado');
         } else {
           // Se já usou trial antes, apenas 1 dia de acesso
           const dataLimitada = new Date();
           empresa.data_inicio_trial = new Date(dataLimitada.getTime() - (6 * 24 * 60 * 60 * 1000)); // 1 dia apenas
+          empresa.data_expiracao = new Date(dataLimitada.getTime() + 24 * 60 * 60 * 1000);
           console.log('⚠️ [VALIDAÇÃO] Trial já foi usado - apenas 1 dia de acesso');
         }
         

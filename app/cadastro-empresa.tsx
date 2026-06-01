@@ -158,7 +158,7 @@ export default function CadastroEmpresaScreen() {
       
       Alert.alert(
         'Cadastro Realizado!',
-        `Empresa cadastrada com sucesso!\n\nCódigo: ${response.codigo}\nLogin: ${response.login_responsavel || formData.cpf_responsavel}\n\nLicenças: ${quantidadeLicencas}\nValor mensal: R$ ${valorMensal.toFixed(2)}\n\nLogin liberado com a senha cadastrada.`,
+        `Empresa cadastrada com sucesso!\n\nCódigo: ${response.codigo}\nLogin: ${response.login_responsavel || formData.cpf_responsavel}\n\nLicenças: ${quantidadeLicencas}\nValor mensal: R$ ${valorMensal.toFixed(2)}\n\nEnviamos um email de validação. Clique no link recebido para liberar o login.`,
         [
           {
             text: 'OK',
