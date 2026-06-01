@@ -32,6 +32,8 @@ interface EmailResult {
   code?: string;
   responseCode?: number;
   command?: string;
+  port?: number;
+  attemptedPorts?: number[];
   missingConfig?: string[];
 }
 
@@ -41,12 +43,14 @@ const getMissingEmailConfig = () => (
   requiredEmailConfig.filter((key) => !process.env[key])
 );
 
-const toEmailErrorResult = (error: any): EmailResult => ({
+const toEmailErrorResult = (error: any, port?: number, attemptedPorts?: number[]): EmailResult => ({
   success: false,
   error: error?.message || 'Falha desconhecida ao enviar email',
   code: error?.code,
   responseCode: error?.responseCode,
   command: error?.command,
+  port,
+  attemptedPorts,
 });
 
 const shouldRetryGmailSecurePort = (error: any) => (
@@ -92,13 +96,13 @@ export const sendEmailDetailed = async ({ to, subject, html }: EmailOptions): Pr
         console.log(`✅ Email enviado para ${to} usando fallback SMTP 465`);
         return { success: true };
       } catch (fallbackError) {
-        const result = toEmailErrorResult(fallbackError);
+        const result = toEmailErrorResult(fallbackError, 465, [587, 465]);
         console.error('Erro ao enviar email no fallback SMTP 465:', result);
         return result;
       }
     }
 
-    const result = toEmailErrorResult(error);
+    const result = toEmailErrorResult(error, emailPort, [emailPort]);
     console.error('Erro ao enviar email:', result);
     return result;
   }

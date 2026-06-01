@@ -312,6 +312,8 @@ export const cadastrarEmpresa = async (req: Request, res: Response) => {
         code: emailResultado.code,
         responseCode: emailResultado.responseCode,
         command: emailResultado.command,
+        port: emailResultado.port,
+        attemptedPorts: emailResultado.attemptedPorts,
         missingConfig: emailResultado.missingConfig,
       });
     }
