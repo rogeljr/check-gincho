@@ -1,11 +1,13 @@
 import { Request, Response } from 'express';
 import { Payment, Preference } from 'mercadopago';
+import { Op } from 'sequelize';
 import mercadoPagoConfig from '../config/mercadopago';
 import Pagamento from '../models/Pagamento';
 import Empresa from '../models/Empresa';
 
 const paymentClient = new Payment(mercadoPagoConfig);
 const preferenceClient = new Preference(mercadoPagoConfig);
+const PENDING_PAYMENT_WINDOW_MS = 2 * 60 * 60 * 1000;
 
 const getPublicBaseUrl = (req: Request) => {
   const backendUrl = process.env.BACKEND_URL?.replace(/\/$/, '');
@@ -41,6 +43,95 @@ const getCheckoutUrl = (preference: any) => {
     : preference.init_point || preference.sandbox_init_point;
 };
 
+const getCheckoutUrlFromPagamento = (pagamento: Pagamento) => {
+  const metadata = pagamento.metadata || {};
+  const preferenceId = metadata.preference_id || pagamento.mercadopago_id;
+
+  if (metadata.checkout_url) return metadata.checkout_url;
+  if (metadata.sandbox_init_point || metadata.init_point) return getCheckoutUrl(metadata);
+  if (!preferenceId) return undefined;
+
+  const token = process.env.MERCADO_PAGO_ACCESS_TOKEN || '';
+  const baseUrl = token.startsWith('TEST-')
+    ? 'https://sandbox.mercadopago.com.br/checkout/v1/redirect'
+    : 'https://www.mercadopago.com.br/checkout/v1/redirect';
+
+  return `${baseUrl}?pref_id=${encodeURIComponent(preferenceId)}`;
+};
+
+const findRecentPendingPayment = async (empresaId: number) => {
+  return Pagamento.findOne({
+    where: {
+      empresa_id: empresaId,
+      status: 'pending',
+      createdAt: {
+        [Op.gte]: new Date(Date.now() - PENDING_PAYMENT_WINDOW_MS)
+      }
+    },
+    order: [['createdAt', 'DESC']]
+  });
+};
+
+const buildPendingPaymentResponse = (pagamento: Pagamento, quantidadeLicencas: number) => {
+  const metadata = pagamento.metadata || {};
+  const preferenceId = metadata.preference_id || pagamento.mercadopago_id;
+  const valor = Number(pagamento.valor);
+  const licencasPagamento = pagamento.quantidade_licencas_solicitadas || quantidadeLicencas;
+
+  return {
+    message: 'Já existe uma cobrança pendente recente. Reabrindo o mesmo checkout.',
+    preference_id: preferenceId,
+    init_point: metadata.init_point,
+    sandbox_init_point: metadata.sandbox_init_point,
+    checkout_url: getCheckoutUrlFromPagamento(pagamento),
+    quantidade_licencas: licencasPagamento,
+    valor_total: valor,
+    preco_por_licenca: licencasPagamento > 0 ? valor / licencasPagamento : valor
+  };
+};
+
+const getFirstQueryValue = (value: unknown) => {
+  if (Array.isArray(value)) {
+    return value.find((item) => {
+      const text = String(item || '').trim().toLowerCase();
+      return text && text !== 'null' && text !== 'undefined';
+    });
+  }
+
+  return value;
+};
+
+const normalizePaymentReturnStatus = (req: Request) => {
+  const candidates = [req.query.status, req.query.collection_status, req.query.payment_status]
+    .map(getFirstQueryValue)
+    .map((value) => String(value || '').trim().toLowerCase())
+    .filter((value) => value && value !== 'null' && value !== 'undefined');
+
+  const rawStatus = candidates[0] || 'pending';
+
+  if (['success', 'approved', 'accredited'].includes(rawStatus)) {
+    return {
+      appPath: 'sucesso',
+      title: 'Pagamento aprovado',
+      description: 'Seu pagamento foi aprovado. Voltando para o Check Guincho.'
+    };
+  }
+
+  if (['failure', 'rejected', 'cancelled', 'canceled'].includes(rawStatus)) {
+    return {
+      appPath: 'falha',
+      title: 'Pagamento não aprovado',
+      description: 'O pagamento não foi aprovado. Você pode voltar ao app e tentar novamente.'
+    };
+  }
+
+  return {
+    appPath: 'pendente',
+    title: 'Pagamento pendente',
+    description: 'O pagamento ainda está em análise. Volte ao app e toque em Atualizar Agora.'
+  };
+};
+
 const ensureMercadoPagoConfigured = () => {
   const token = process.env.MERCADO_PAGO_ACCESS_TOKEN || '';
 
@@ -71,6 +162,11 @@ export const criarPreferencia = async (req: Request, res: Response) => {
     
     // Valor: R$5 por mês (teste)
     const valorMensal = 5.00;
+
+    const pagamentoPendente = await findRecentPendingPayment(empresa.id);
+    if (pagamentoPendente) {
+      return res.json(buildPendingPaymentResponse(pagamentoPendente, 1));
+    }
     
     const notificationUrl = getNotificationUrl(req);
     const backUrls = getBackUrls(req);
@@ -112,7 +208,11 @@ export const criarPreferencia = async (req: Request, res: Response) => {
       tipo_pagamento: 'pix', // Será atualizado depois
       quantidade_licencas_solicitadas: 1,
       metadata: {
-        preference_id: preference.id
+        preference_id: preference.id,
+        init_point: preference.init_point,
+        sandbox_init_point: preference.sandbox_init_point,
+        checkout_url: getCheckoutUrl(preference),
+        quantidade_licencas_solicitadas: 1
       }
     });
     
@@ -165,6 +265,12 @@ export const selecionarLicencas = async (req: Request, res: Response) => {
     const precoPorLicenca = 5.00;
     const valorTotal = precoPorLicenca * quantidade_licencas;
 
+    const pagamentoPendente = await findRecentPendingPayment(empresa.id);
+    if (pagamentoPendente) {
+      console.log('⚠️ [PAGAMENTO] Reutilizando cobrança pendente recente:', pagamentoPendente.id);
+      return res.json(buildPendingPaymentResponse(pagamentoPendente, quantidade_licencas));
+    }
+
     // Criar preferência no Mercado Pago
     const notificationUrl = getNotificationUrl(req);
     const backUrls = getBackUrls(req);
@@ -207,6 +313,9 @@ export const selecionarLicencas = async (req: Request, res: Response) => {
       quantidade_licencas_solicitadas: quantidade_licencas,
       metadata: {
         preference_id: preference.id,
+        init_point: preference.init_point,
+        sandbox_init_point: preference.sandbox_init_point,
+        checkout_url: getCheckoutUrl(preference),
         quantidade_licencas_solicitadas: quantidade_licencas
       }
     });
@@ -235,12 +344,9 @@ export const selecionarLicencas = async (req: Request, res: Response) => {
 };
 
 export const retornoPagamento = async (req: Request, res: Response) => {
-  const status = String(req.query.status || 'pending');
-  const appPath = status === 'success'
-    ? 'sucesso'
-    : status === 'failure'
-      ? 'falha'
-      : 'pendente';
+  const paymentReturn = normalizePaymentReturnStatus(req);
+  const deepLink = `checkguincho://pagamento/${paymentReturn.appPath}`;
+  const intentLink = `intent://pagamento/${paymentReturn.appPath}#Intent;scheme=checkguincho;package=com.checkguincho.app;end`;
 
   return res.send(`
     <!DOCTYPE html>
@@ -253,18 +359,24 @@ export const retornoPagamento = async (req: Request, res: Response) => {
           body { font-family: Arial, sans-serif; text-align: center; padding: 40px; background: #f7f9fc; color: #1a1a1a; }
           .box { max-width: 420px; margin: 0 auto; background: #fff; padding: 28px; border-radius: 10px; border: 1px solid #e6ecf3; }
           a { display: inline-block; margin-top: 16px; padding: 12px 18px; background: #27AE60; color: #fff; text-decoration: none; border-radius: 8px; font-weight: 700; }
+          small { display: block; margin-top: 16px; color: #667; line-height: 1.4; }
         </style>
         <script>
-          setTimeout(function() {
-            window.location.href = 'checkguincho://pagamento/${appPath}';
-          }, 800);
+          function abrirApp() {
+            window.location.href = '${deepLink}';
+            setTimeout(function() {
+              window.location.href = '${intentLink}';
+            }, 700);
+          }
+          setTimeout(abrirApp, 800);
         </script>
       </head>
       <body>
         <div class="box">
-          <h1>Pagamento ${status}</h1>
-          <p>Você pode voltar para o Check Guincho e tocar em Atualizar Agora.</p>
-          <a href="checkguincho://pagamento/${appPath}">Abrir Check Guincho</a>
+          <h1>${paymentReturn.title}</h1>
+          <p>${paymentReturn.description}</p>
+          <a href="${deepLink}" onclick="abrirApp(); return false;">Abrir Check Guincho</a>
+          <small>Se estiver testando pelo Expo Go, volte manualmente para o app. O botão funciona melhor no APK instalado.</small>
         </div>
       </body>
     </html>
