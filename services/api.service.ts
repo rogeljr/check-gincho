@@ -51,8 +51,8 @@ class ApiService {
       fullURL: `${this.api.defaults.baseURL}${url}`,
     };
 
-    if (status >= 400 && status < 500) {
-      console.log(`[ApiService] ${method} ${url} - Validacao`, details);
+    if (status && status >= 400 && error.response?.data) {
+      console.log(`[ApiService] ${method} ${url} - Resposta da API`, details);
       return;
     }
 
