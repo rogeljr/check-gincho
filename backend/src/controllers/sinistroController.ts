@@ -371,6 +371,8 @@ export const removerFoto = async (req: Request, res: Response) => {
 
 // Adicionar assinatura ao sinistro
 export const adicionarAssinatura = async (req: Request, res: Response) => {
+  let assinaturaCloudinaryId: string | undefined;
+
   try {
     const { id } = req.params;
     const { assinatura_base64, nome } = req.body;
@@ -406,7 +408,19 @@ export const adicionarAssinatura = async (req: Request, res: Response) => {
     }
     
     // Upload para Cloudinary
-    const uploadResult = await uploadBase64Image(assinatura_base64, `assinaturas/${sinistro.id}`);
+    let uploadResult;
+    try {
+      uploadResult = await uploadBase64Image(assinatura_base64, `assinaturas/${sinistro.id}`);
+      assinaturaCloudinaryId = uploadResult.public_id;
+    } catch (uploadError) {
+      console.error('Erro ao enviar assinatura para Cloudinary:', uploadError);
+      return res.status(500).json({
+        error: 'Erro ao enviar assinatura',
+        etapa: 'upload_assinatura',
+        details: (uploadError as any).message,
+        code: (uploadError as any).code,
+      });
+    }
     
     // Atualizar sinistro
     sinistro.assinatura_url = uploadResult.secure_url;
@@ -436,8 +450,14 @@ export const adicionarAssinatura = async (req: Request, res: Response) => {
       sinistro.finalizado_em = new Date();
     } catch (pdfError) {
       console.error('Erro ao gerar PDF protegido após assinatura:', pdfError);
+      if (assinaturaCloudinaryId) {
+        await deleteImage(assinaturaCloudinaryId);
+      }
       return res.status(500).json({
         error: 'Não foi possível gerar o PDF protegido. O sinistro não foi finalizado.',
+        etapa: 'gerar_pdf_protegido',
+        details: (pdfError as any).message,
+        code: (pdfError as any).code,
       });
     }
     
@@ -457,7 +477,12 @@ export const adicionarAssinatura = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Erro ao adicionar assinatura:', error);
-    return res.status(500).json({ error: 'Erro ao adicionar assinatura' });
+    return res.status(500).json({
+      error: 'Erro ao adicionar assinatura',
+      etapa: 'assinatura',
+      details: (error as any).message,
+      code: (error as any).code,
+    });
   }
 };
 

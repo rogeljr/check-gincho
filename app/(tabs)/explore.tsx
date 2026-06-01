@@ -92,7 +92,7 @@ export default function SinistrosPendentesScreen() {
         destino_endereco: sinistro.destino_endereco,
         quilometragem: sinistro.quilometragem,
         observacoes: sinistro.observacoes,
-        status: sinistro.status, // Mantém finalizado se já tiver assinatura
+        status: sinistro.assinatura_base64 ? 'rascunho' : sinistro.status,
       };
 
       // Se tem servidor_id, é atualização
