@@ -1,10 +1,10 @@
-import axios, { AxiosInstance, AxiosError } from 'axios';
+import axios, { AxiosError, AxiosInstance } from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_CONFIG } from '../config/api';
 
 class ApiService {
   private api: AxiosInstance;
-  
+
   constructor() {
     this.api = axios.create({
       baseURL: API_CONFIG.BASE_URL,
@@ -15,8 +15,7 @@ class ApiService {
       httpAgent: undefined,
       httpsAgent: undefined,
     });
-    
-    // Interceptor para adicionar token em todas as requisições
+
     this.api.interceptors.request.use(
       async (config) => {
         const token = await AsyncStorage.getItem('@checkguincho:token');
@@ -27,13 +26,11 @@ class ApiService {
       },
       (error) => Promise.reject(error)
     );
-    
-    // Interceptor para tratar erros
+
     this.api.interceptors.response.use(
       (response) => response,
       async (error: AxiosError) => {
         if (error.response?.status === 401) {
-          // Token expirado ou inválido - fazer logout
           await AsyncStorage.removeItem('@checkguincho:token');
           await AsyncStorage.removeItem('@checkguincho:empresa');
         }
@@ -41,75 +38,71 @@ class ApiService {
       }
     );
   }
-  
-  // Métodos genéricos
+
+  private logError(method: string, url: string, error: any): void {
+    const status = error.response?.status;
+    const details = {
+      message: error.message,
+      code: error.code,
+      status,
+      statusText: error.response?.statusText,
+      responseData: error.response?.data,
+      baseURL: this.api.defaults.baseURL,
+      fullURL: `${this.api.defaults.baseURL}${url}`,
+    };
+
+    if (status >= 400 && status < 500) {
+      console.log(`[ApiService] ${method} ${url} - Validacao`, details);
+      return;
+    }
+
+    console.error(`[ApiService] ${method} ${url} - Error`, details);
+  }
+
   async get<T>(url: string, params?: any): Promise<T> {
     try {
-      console.log(`🔄 [ApiService] GET ${url}`, { params });
+      console.log(`[ApiService] GET ${url}`, { params });
       const response = await this.api.get<T>(url, { params });
-      console.log(`✅ [ApiService] GET ${url} - Success`, response.data);
+      console.log(`[ApiService] GET ${url} - Success`, response.data);
       return response.data;
     } catch (error: any) {
-      console.error(`❌ [ApiService] GET ${url} - Error`, {
-        message: error.message,
-        code: error.code,
-        baseURL: this.api.defaults.baseURL,
-        fullURL: `${this.api.defaults.baseURL}${url}`
-      });
+      this.logError('GET', url, error);
       throw error;
     }
   }
-  
+
   async post<T>(url: string, data?: any): Promise<T> {
     try {
-      console.log(`🔄 [ApiService] POST ${url}`, { data, baseURL: this.api.defaults.baseURL });
+      console.log(`[ApiService] POST ${url}`, { data, baseURL: this.api.defaults.baseURL });
       const response = await this.api.post<T>(url, data);
-      console.log(`✅ [ApiService] POST ${url} - Success`, response.data);
+      console.log(`[ApiService] POST ${url} - Success`, response.data);
       return response.data;
     } catch (error: any) {
-      console.error(`❌ [ApiService] POST ${url} - Error`, {
-        message: error.message,
-        code: error.code,
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        responseData: error.response?.data,
-        baseURL: this.api.defaults.baseURL,
-        fullURL: `${this.api.defaults.baseURL}${url}`
-      });
+      this.logError('POST', url, error);
       throw error;
     }
   }
-  
+
   async put<T>(url: string, data?: any): Promise<T> {
     try {
-      console.log(`🔄 [ApiService] PUT ${url}`, { data });
+      console.log(`[ApiService] PUT ${url}`, { data });
       const response = await this.api.put<T>(url, data);
-      console.log(`✅ [ApiService] PUT ${url} - Success`, response.data);
+      console.log(`[ApiService] PUT ${url} - Success`, response.data);
       return response.data;
     } catch (error: any) {
-      console.error(`❌ [ApiService] PUT ${url} - Error`, {
-        message: error.message,
-        code: error.code,
-        baseURL: API_CONFIG.BASE_URL,
-        fullURL: `${API_CONFIG.BASE_URL}${url}`
-      });
+      this.logError('PUT', url, error);
       throw error;
     }
   }
-  
+
   async delete<T>(url: string): Promise<T> {
     try {
-      console.log(`🔄 [ApiService] DELETE ${url}`);
+      console.log(`[ApiService] DELETE ${url}`);
       const response = await this.api.delete<T>(url);
-      console.log(`✅ [ApiService] DELETE ${url} - Success`, response.data);
+      console.log(`[ApiService] DELETE ${url} - Success`, response.data);
       return response.data;
     } catch (error: any) {
-      console.error(`❌ [ApiService] DELETE ${url} - Error`, {
-        message: error.message,
-        code: error.code,
-        baseURL: this.api.defaults.baseURL,
-        fullURL: `${this.api.defaults.baseURL}${url}`
-      });
+      this.logError('DELETE', url, error);
       throw error;
     }
   }
