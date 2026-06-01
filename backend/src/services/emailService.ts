@@ -24,7 +24,42 @@ interface EmailOptions {
   html: string;
 }
 
-export const sendEmail = async ({ to, subject, html }: EmailOptions): Promise<boolean> => {
+interface EmailResult {
+  success: boolean;
+  error?: string;
+  code?: string;
+  responseCode?: number;
+  command?: string;
+  missingConfig?: string[];
+}
+
+const requiredEmailConfig = ['EMAIL_HOST', 'EMAIL_PORT', 'EMAIL_USER', 'EMAIL_PASSWORD', 'EMAIL_FROM'];
+
+const getMissingEmailConfig = () => (
+  requiredEmailConfig.filter((key) => !process.env[key])
+);
+
+const toEmailErrorResult = (error: any): EmailResult => ({
+  success: false,
+  error: error?.message || 'Falha desconhecida ao enviar email',
+  code: error?.code,
+  responseCode: error?.responseCode,
+  command: error?.command,
+});
+
+export const sendEmailDetailed = async ({ to, subject, html }: EmailOptions): Promise<EmailResult> => {
+  const missingConfig = getMissingEmailConfig();
+  if (missingConfig.length) {
+    const result = {
+      success: false,
+      error: `Variaveis de email ausentes: ${missingConfig.join(', ')}`,
+      code: 'EMAIL_CONFIG_MISSING',
+      missingConfig,
+    };
+    console.error('Erro ao enviar email:', result);
+    return result;
+  }
+
   try {
     await transporter.sendMail({
       from: process.env.EMAIL_FROM,
@@ -34,11 +69,17 @@ export const sendEmail = async ({ to, subject, html }: EmailOptions): Promise<bo
     });
     
     console.log(`✅ Email enviado para ${to}`);
-    return true;
+    return { success: true };
   } catch (error) {
-    console.error('❌ Erro ao enviar email:', error);
-    return false;
+    const result = toEmailErrorResult(error);
+    console.error('Erro ao enviar email:', result);
+    return result;
   }
+};
+
+export const sendEmail = async (options: EmailOptions): Promise<boolean> => {
+  const result = await sendEmailDetailed(options);
+  return result.success;
 };
 
 // Template de email de boas-vindas

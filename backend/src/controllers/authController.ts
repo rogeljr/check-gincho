@@ -5,7 +5,7 @@ import Empresa from '../models/Empresa';
 import Usuario from '../models/Usuario';
 import TrialUsage from '../models/TrialUsage';
 import { hashPassword, comparePassword, generateToken, generateCodigoEmpresa, validarCNPJ, formatarCNPJ } from '../utils/auth';
-import { sendEmail, emailBoasVindas, emailSenhaDefinida, emailValidacaoConta, emailContaValidada } from '../services/emailService';
+import { sendEmail, sendEmailDetailed, emailBoasVindas, emailSenhaDefinida, emailValidacaoConta, emailContaValidada } from '../services/emailService';
 import { createLog } from '../middleware/logger';
 import { uploadBase64Image, deleteImage } from '../services/uploadService';
 import jwt, { JwtPayload } from 'jsonwebtoken';
@@ -296,16 +296,24 @@ export const cadastrarEmpresa = async (req: Request, res: Response) => {
     const validacaoUrl = `${backendUrl}/api/auth/validar-conta?token=${tokenValidacao}`;
     console.log('[CADASTRO] Tentando enviar email para:', emailNormalizado);
 
-    const emailEnviado = await sendEmail({
+    const emailResultado = await sendEmailDetailed({
       to: emailNormalizado,
       subject: 'Check Guincho - Confirme sua conta',
       html: emailValidacaoConta(nome, codigoFinal, validacaoUrl)
     });
 
-    if (!emailEnviado) {
+    if (!emailResultado.success) {
+      console.error('[CADASTRO] Falha ao enviar email de validacao:', emailResultado);
       await TrialUsage.destroy({ where: { empresa_id: empresa.id } });
       await empresa.destroy();
-      return res.status(502).json({ error: 'Nao foi possivel enviar o email de validacao. Confira o email e tente novamente.' });
+      return res.status(502).json({
+        error: 'Nao foi possivel enviar o email de validacao. Confira o email e tente novamente.',
+        details: emailResultado.error,
+        code: emailResultado.code,
+        responseCode: emailResultado.responseCode,
+        command: emailResultado.command,
+        missingConfig: emailResultado.missingConfig,
+      });
     }
 
     console.log('[CADASTRO] Email enviado com sucesso');
