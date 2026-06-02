@@ -1,4 +1,4 @@
-import nodemailer from 'nodemailer';
+import nodemailer, { TransportOptions } from 'nodemailer';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -13,8 +13,8 @@ const FALLBACK_PORTS = [
   25,   // Última opção
 ];
 
-const createTransporter = (port = emailPort) => (
-  nodemailer.createTransport({
+const createTransporter = (port = emailPort) => {
+  const config: TransportOptions = {
     host: process.env.EMAIL_HOST,
     port,
     secure: port === 465 || port === 2525,
@@ -26,8 +26,10 @@ const createTransporter = (port = emailPort) => (
     greetingTimeout: 30000,
     socketTimeout: 30000,
     keepAlive: false,
-  })
-);
+  } as any;
+  
+  return nodemailer.createTransport(config);
+};
 
 interface EmailOptions {
   to: string;
