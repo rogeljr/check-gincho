@@ -304,6 +304,37 @@ export const cadastrarEmpresa = async (req: Request, res: Response) => {
 
     if (!emailResultado.success) {
       console.error('[CADASTRO] Falha ao enviar email de validacao:', emailResultado);
+      const emailObrigatorio = process.env.EMAIL_REQUIRED !== 'false';
+
+      if (!emailObrigatorio) {
+        const agora = new Date();
+        empresa.ativo = true;
+        empresa.data_inicio_trial = temDireitoTrial
+          ? agora
+          : new Date(agora.getTime() - (6 * 24 * 60 * 60 * 1000));
+        await empresa.save();
+
+        console.warn('[CADASTRO] EMAIL_REQUIRED=false. Empresa ativada sem email de validacao:', {
+          id: empresa.id,
+          codigo: empresa.codigo,
+          email: emailNormalizado,
+          emailErro: emailResultado.error,
+        });
+
+        return res.status(201).json({
+          message: 'Empresa cadastrada sem envio de email porque EMAIL_REQUIRED=false.',
+          codigo: codigoFinal,
+          email: emailNormalizado,
+          login_responsavel: cpfLimpo,
+          tem_direito_trial: temDireitoTrial,
+          email_enviado: false,
+          email_error: emailResultado.error,
+          email_code: emailResultado.code,
+          email_port: emailResultado.port,
+          email_attempted_ports: emailResultado.attemptedPorts,
+        });
+      }
+
       await TrialUsage.destroy({ where: { empresa_id: empresa.id } });
       await empresa.destroy();
       return res.status(502).json({
