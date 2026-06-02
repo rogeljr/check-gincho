@@ -105,6 +105,7 @@ class AuthService {
   // Cadastrar nova empresa COM SENHA
   async cadastrarEmpresaComSenha(data: {
     nome: string;
+    codigo?: string;
     cnpj: string;
     email: string;
     senha: string;

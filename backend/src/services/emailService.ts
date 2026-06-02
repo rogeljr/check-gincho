@@ -53,13 +53,6 @@ const toEmailErrorResult = (error: any, port?: number, attemptedPorts?: number[]
   attemptedPorts,
 });
 
-const shouldRetryGmailSecurePort = (error: any) => (
-  String(process.env.EMAIL_HOST || '').toLowerCase() === 'smtp.gmail.com' &&
-  emailPort === 587 &&
-  error?.code === 'ETIMEDOUT' &&
-  error?.command === 'CONN'
-);
-
 const sendWithPort = async ({ to, subject, html }: EmailOptions, port = emailPort) => {
   const transporter = createTransporter(port);
   await transporter.sendMail({
@@ -89,19 +82,6 @@ export const sendEmailDetailed = async ({ to, subject, html }: EmailOptions): Pr
     console.log(`✅ Email enviado para ${to}`);
     return { success: true };
   } catch (error) {
-    if (shouldRetryGmailSecurePort(error)) {
-      console.warn('Timeout no Gmail porta 587. Tentando fallback na porta 465.');
-      try {
-        await sendWithPort({ to, subject, html }, 465);
-        console.log(`✅ Email enviado para ${to} usando fallback SMTP 465`);
-        return { success: true };
-      } catch (fallbackError) {
-        const result = toEmailErrorResult(fallbackError, 465, [587, 465]);
-        console.error('Erro ao enviar email no fallback SMTP 465:', result);
-        return result;
-      }
-    }
-
     const result = toEmailErrorResult(error, emailPort, [emailPort]);
     console.error('Erro ao enviar email:', result);
     return result;

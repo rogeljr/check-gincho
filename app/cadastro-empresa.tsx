@@ -15,21 +15,62 @@ import { useRouter } from 'expo-router';
 import authService from '../services/auth.service';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+const formatCNPJValue = (numbers: string) => (
+  `${numbers.slice(0, 2)}.${numbers.slice(2, 5)}.${numbers.slice(5, 8)}/${numbers.slice(8, 12)}-${numbers.slice(12, 14)}`
+);
+
+const formatCPFValue = (numbers: string) => (
+  `${numbers.slice(0, 3)}.${numbers.slice(3, 6)}.${numbers.slice(6, 9)}-${numbers.slice(9, 11)}`
+);
+
+const randomDigit = () => Math.floor(Math.random() * 10);
+
+const generateCPF = () => {
+  const digits = Array.from({ length: 9 }, randomDigit);
+  const firstCheck = digits.reduce((sum, digit, index) => sum + digit * (10 - index), 0);
+  const digit10 = firstCheck % 11 < 2 ? 0 : 11 - (firstCheck % 11);
+  const withFirstCheck = [...digits, digit10];
+  const secondCheck = withFirstCheck.reduce((sum, digit, index) => sum + digit * (11 - index), 0);
+  const digit11 = secondCheck % 11 < 2 ? 0 : 11 - (secondCheck % 11);
+
+  return formatCPFValue([...withFirstCheck, digit11].join(''));
+};
+
+const generateCNPJ = () => {
+  const digits = Array.from({ length: 12 }, randomDigit);
+  const firstWeights = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+  const secondWeights = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+  const firstCheck = digits.reduce((sum, digit, index) => sum + digit * firstWeights[index], 0);
+  const digit13 = firstCheck % 11 < 2 ? 0 : 11 - (firstCheck % 11);
+  const withFirstCheck = [...digits, digit13];
+  const secondCheck = withFirstCheck.reduce((sum, digit, index) => sum + digit * secondWeights[index], 0);
+  const digit14 = secondCheck % 11 < 2 ? 0 : 11 - (secondCheck % 11);
+
+  return formatCNPJValue([...withFirstCheck, digit14].join(''));
+};
+
+const createTestFormData = () => {
+  const suffix = Date.now().toString().slice(-6);
+
+  return {
+    nome: `Teste${suffix}`,
+    codigo: `teste${suffix}`,
+    cnpj: generateCNPJ(),
+    email: `ilumisystem.sa1+teste${suffix}@gmail.com`,
+    telefone: '(31) 99622-5333',
+    endereco: 'Rua Diamantina, Niteroi - MG',
+    cpf_responsavel: generateCPF(),
+    senha: '123456',
+    confirmarSenha: '123456',
+  };
+};
+
 export default function CadastroEmpresaScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   
-  const [formData, setFormData] = useState({
-    nome: '',
-    cnpj: '',
-    email: '',
-    telefone: '',
-    endereco: '',
-    cpf_responsavel: '',
-    senha: '',
-    confirmarSenha: '',
-  });
-  const [quantidadeLicencas, setQuantidadeLicencas] = useState(1);
+  const [formData, setFormData] = useState(createTestFormData);
+  const [quantidadeLicencas, setQuantidadeLicencas] = useState(2);
   const [loading, setLoading] = useState(false);
   const [mostrarSenhas, setMostrarSenhas] = useState(false);
   
@@ -38,6 +79,11 @@ export default function CadastroEmpresaScreen() {
   
   const handleChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleGerarDadosTeste = () => {
+    setFormData(createTestFormData());
+    setQuantidadeLicencas(2);
   };
   
   const formatCNPJ = (text: string) => {
@@ -147,6 +193,7 @@ export default function CadastroEmpresaScreen() {
       
       const response = await authService.cadastrarEmpresaComSenha({
         nome: formData.nome.trim(),
+        codigo: formData.codigo.trim().toLowerCase(),
         cnpj: cnpjNumbers,
         email: formData.email.trim().toLowerCase(),
         senha: formData.senha,
@@ -193,6 +240,13 @@ export default function CadastroEmpresaScreen() {
           <Text style={styles.subtitle}>
             Preencha os dados para criar sua conta
           </Text>
+          <TouchableOpacity
+            style={styles.testDataButton}
+            onPress={handleGerarDadosTeste}
+            disabled={loading}
+          >
+            <Text style={styles.testDataButtonText}>Gerar dados de teste</Text>
+          </TouchableOpacity>
           
           <View style={styles.form}>
             <Text style={styles.label}>Nome da Empresa *</Text>
@@ -424,8 +478,21 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 14,
     textAlign: 'center',
-    marginBottom: 30,
+    marginBottom: 12,
     color: '#7F8C8D',
+  },
+  testDataButton: {
+    alignSelf: 'center',
+    backgroundColor: '#2C3E50',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginBottom: 18,
+  },
+  testDataButtonText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
   },
   form: {
     backgroundColor: '#fff',
