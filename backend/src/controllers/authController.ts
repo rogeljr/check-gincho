@@ -15,6 +15,49 @@ const normalizarEmail = (email?: string) => String(email || '').trim().toLowerCa
 const normalizarLogin = (login?: string) => String(login || '').trim().toLowerCase();
 const somenteDigitos = (valor?: string) => String(valor || '').replace(/\D/g, '');
 
+// Função para retornar dicas de resolução baseadas no código de erro
+const getEmailTroubleshootingTips = (errorCode?: string): string[] => {
+  const tips: { [key: string]: string[] } = {
+    'ETIMEDOUT': [
+      'Timeout na conexão SMTP. Verifique:',
+      '- Firewall pode estar bloqueando SMTP',
+      '- EMAIL_HOST pode estar incorreto',
+      '- Tente portas 465, 2525 ou 25 em vez de 587',
+      '- Sua conexão com internet está OK?'
+    ],
+    'EAUTH': [
+      'Erro de autenticação. Verifique:',
+      '- EMAIL_USER está correto?',
+      '- Para Gmail: usar Senha de Aplicativo, não senha da conta',
+      '- Ativar 2FA em https://myaccount.google.com/security',
+      '- Gerar App Password em https://myaccount.google.com/apppasswords'
+    ],
+    'ECONNREFUSED': [
+      'Conexão recusada. Verifique:',
+      '- EMAIL_HOST está correto?',
+      '- EMAIL_PORT está correto?',
+      '- Serviço SMTP está online?'
+    ],
+    'EMAIL_CONFIG_MISSING': [
+      'Variáveis de email não configuradas. Defina:',
+      '- EMAIL_HOST',
+      '- EMAIL_PORT',
+      '- EMAIL_USER',
+      '- EMAIL_PASSWORD',
+      '- EMAIL_FROM'
+    ],
+    'ALL_PORTS_FAILED': [
+      'Nenhuma porta respondeu. Verifique:',
+      '- Todas as configurações de email (host, usuário, senha)',
+      '- Firewall/Network está bloqueando SMTP',
+      '- Considere usar SendGrid, Mailgun ou AWS SES em produção',
+      '- Para teste local: use MailHog ou Ethereal Email'
+    ]
+  };
+  
+  return tips[errorCode || 'UNKNOWN'] || ['Erro desconhecido. Consulte os logs para mais detalhes.'];
+};
+
 const usuarioResponse = (usuario: Usuario) => ({
   id: usuario.id,
   empresa_id: usuario.empresa_id,
@@ -314,15 +357,18 @@ export const cadastrarEmpresa = async (req: Request, res: Response) => {
           : new Date(agora.getTime() - (6 * 24 * 60 * 60 * 1000));
         await empresa.save();
 
-        console.warn('[CADASTRO] EMAIL_REQUIRED=false. Empresa ativada sem email de validacao:', {
+        console.warn('[CADASTRO] ⚠️ EMAIL_REQUIRED=false. Empresa ativada SEM email de validacao:', {
           id: empresa.id,
           codigo: empresa.codigo,
           email: emailNormalizado,
           emailErro: emailResultado.error,
+          emailCode: emailResultado.code,
+          emailTentativaEmPortas: emailResultado.attemptedPorts,
         });
 
         return res.status(201).json({
           message: 'Empresa cadastrada sem envio de email porque EMAIL_REQUIRED=false.',
+          warning: '⚠️ Email não foi enviado. Configure o serviço de email antes de ativar EMAIL_REQUIRED em produção.',
           codigo: codigoFinal,
           email: emailNormalizado,
           login_responsavel: cpfLimpo,
@@ -337,8 +383,9 @@ export const cadastrarEmpresa = async (req: Request, res: Response) => {
 
       await TrialUsage.destroy({ where: { empresa_id: empresa.id } });
       await empresa.destroy();
-      return res.status(502).json({
-        error: 'Nao foi possivel enviar o email de validacao. Confira o email e tente novamente.',
+      
+      const errorDetails = {
+        error: 'Nao foi possivel enviar o email de validacao. Confira as configuracoes de email.',
         details: emailResultado.error,
         code: emailResultado.code,
         responseCode: emailResultado.responseCode,
@@ -346,7 +393,11 @@ export const cadastrarEmpresa = async (req: Request, res: Response) => {
         port: emailResultado.port,
         attemptedPorts: emailResultado.attemptedPorts,
         missingConfig: emailResultado.missingConfig,
-      });
+        troubleshoot: getEmailTroubleshootingTips(emailResultado.code),
+      };
+      
+      console.error('[CADASTRO] Email obrigatorio mas falhou. Rejeitando cadastro:', errorDetails);
+      return res.status(502).json(errorDetails);
     }
 
     console.log('[CADASTRO] Email enviado com sucesso');

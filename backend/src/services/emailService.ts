@@ -5,18 +5,27 @@ dotenv.config();
 
 const emailPort = parseInt(process.env.EMAIL_PORT || '587', 10);
 
+// Portas de fallback para tentar em caso de timeout
+const FALLBACK_PORTS = [
+  emailPort,
+  emailPort === 587 ? 465 : 587, // Se não for 587, tenta 587; caso contrário, tenta 465
+  2525, // Alternativa conhecida
+  25,   // Última opção
+];
+
 const createTransporter = (port = emailPort) => (
   nodemailer.createTransport({
     host: process.env.EMAIL_HOST,
     port,
-    secure: port === 465,
+    secure: port === 465 || port === 2525,
     auth: {
       user: process.env.EMAIL_USER,
       pass: process.env.EMAIL_PASSWORD
     },
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-    socketTimeout: 15000,
+    connectionTimeout: 30000, // Aumentado para 30s
+    greetingTimeout: 30000,
+    socketTimeout: 30000,
+    keepAlive: false,
   })
 );
 
@@ -55,12 +64,16 @@ const toEmailErrorResult = (error: any, port?: number, attemptedPorts?: number[]
 
 const sendWithPort = async ({ to, subject, html }: EmailOptions, port = emailPort) => {
   const transporter = createTransporter(port);
-  await transporter.sendMail({
-    from: process.env.EMAIL_FROM,
-    to,
-    subject,
-    html
-  });
+  try {
+    await transporter.sendMail({
+      from: process.env.EMAIL_FROM,
+      to,
+      subject,
+      html
+    });
+  } finally {
+    transporter.close();
+  }
 };
 
 export const sendEmailDetailed = async ({ to, subject, html }: EmailOptions): Promise<EmailResult> => {
@@ -72,20 +85,45 @@ export const sendEmailDetailed = async ({ to, subject, html }: EmailOptions): Pr
       code: 'EMAIL_CONFIG_MISSING',
       missingConfig,
     };
-    console.error('Erro ao enviar email:', result);
+    console.error('❌ [EMAIL] Erro ao enviar email:', result);
     return result;
   }
 
-  try {
-    await sendWithPort({ to, subject, html });
+  const attemptedPorts: number[] = [];
+  
+  for (const port of FALLBACK_PORTS) {
+    attemptedPorts.push(port);
     
-    console.log(`✅ Email enviado para ${to}`);
-    return { success: true };
-  } catch (error) {
-    const result = toEmailErrorResult(error, emailPort, [emailPort]);
-    console.error('Erro ao enviar email:', result);
-    return result;
+    try {
+      console.log(`🔗 [EMAIL] Tentando porta ${port}...`);
+      await sendWithPort({ to, subject, html }, port);
+      
+      console.log(`✅ [EMAIL] Email enviado com sucesso para ${to} na porta ${port}`);
+      return { success: true, port, attemptedPorts };
+    } catch (error: any) {
+      const errorCode = error?.code || 'UNKNOWN';
+      console.warn(`⚠️  [EMAIL] Falha na porta ${port}: ${errorCode} - ${error?.message}`);
+      
+      // Se for erro de configuração (não conexão), não vale a pena tentar outras portas
+      if (errorCode === 'EAUTH' || errorCode === 'EMAIL_CONFIG_MISSING') {
+        const result = toEmailErrorResult(error, port, attemptedPorts);
+        console.error('❌ [EMAIL] Erro de autenticação - não tentando outras portas:', result);
+        return result;
+      }
+      
+      // Continuar tentando outras portas em caso de timeout ou erro de conexão
+    }
   }
+  
+  // Se chegou aqui, todas as portas falharam
+  const result: EmailResult = {
+    success: false,
+    error: 'Não foi possível enviar email em nenhuma porta',
+    code: 'ALL_PORTS_FAILED',
+    attemptedPorts,
+  };
+  console.error('❌ [EMAIL] Todas as portas falharam:', result);
+  return result;
 };
 
 export const sendEmail = async (options: EmailOptions): Promise<boolean> => {
