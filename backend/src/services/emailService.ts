@@ -1,5 +1,6 @@
 import nodemailer, { TransportOptions } from 'nodemailer';
 import dotenv from 'dotenv';
+import https from 'https';
 
 dotenv.config();
 
@@ -37,6 +38,16 @@ interface EmailOptions {
   html: string;
 }
 
+interface ResendAttachment {
+  filename: string;
+  content: string;
+  content_type?: string;
+}
+
+interface ResendEmailOptions extends EmailOptions {
+  attachments?: ResendAttachment[];
+}
+
 interface EmailResult {
   success: boolean;
   error?: string;
@@ -64,6 +75,68 @@ const toEmailErrorResult = (error: any, port?: number, attemptedPorts?: number[]
   attemptedPorts,
 });
 
+const sendWithResend = ({ to, subject, html, attachments }: ResendEmailOptions): Promise<EmailResult> => {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    return Promise.resolve({ success: false, code: 'RESEND_API_KEY_MISSING' });
+  }
+
+  const payload = JSON.stringify({
+    from: process.env.RESEND_FROM || 'Check Guincho <onboarding@resend.dev>',
+    to: [to],
+    subject,
+    html,
+    ...(attachments?.length ? { attachments } : {}),
+  });
+
+  return new Promise((resolve) => {
+    const request = https.request({
+      hostname: 'api.resend.com',
+      path: '/emails',
+      method: 'POST',
+      timeout: 15000,
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(payload),
+      },
+    }, (response) => {
+      const chunks: Buffer[] = [];
+      response.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
+      response.on('end', () => {
+        const status = response.statusCode || 500;
+        const body = Buffer.concat(chunks).toString('utf8');
+        let parsed: any = {};
+        try {
+          parsed = JSON.parse(body);
+        } catch {}
+
+        if (status >= 200 && status < 300) {
+          console.log('✅ [EMAIL] Email enviado via Resend', { id: parsed.id });
+          resolve({ success: true, code: 'RESEND_SENT', responseCode: status });
+          return;
+        }
+
+        resolve({
+          success: false,
+          code: parsed.name || 'RESEND_ERROR',
+          error: parsed.message || `Resend respondeu HTTP ${status}`,
+          responseCode: status,
+        });
+      });
+    });
+
+    request.on('timeout', () => request.destroy(new Error('Timeout ao conectar com Resend')));
+    request.on('error', (error: any) => resolve({
+      success: false,
+      code: error.code || 'RESEND_NETWORK_ERROR',
+      error: error.message,
+    }));
+    request.write(payload);
+    request.end();
+  });
+};
+
 const sendWithPort = async ({ to, subject, html }: EmailOptions, port = emailPort) => {
   const transporter = createTransporter(port);
   try {
@@ -79,6 +152,10 @@ const sendWithPort = async ({ to, subject, html }: EmailOptions, port = emailPor
 };
 
 export const sendEmailDetailed = async ({ to, subject, html }: EmailOptions): Promise<EmailResult> => {
+  if (process.env.RESEND_API_KEY) {
+    return sendWithResend({ to, subject, html });
+  }
+
   const missingConfig = getMissingEmailConfig();
   if (missingConfig.length) {
     const result = {
@@ -395,6 +472,26 @@ interface EmailComAnexo extends EmailOptions {
 }
 
 export const sendEmailComAnexo = async ({ to, subject, html, attachments }: EmailComAnexo): Promise<boolean> => {
+  if (process.env.RESEND_API_KEY) {
+    const resendAttachments = (attachments || []).map((attachment) => ({
+      filename: attachment.filename,
+      content: Buffer.isBuffer(attachment.content)
+        ? attachment.content.toString('base64')
+        : String(attachment.content || ''),
+      content_type: attachment.contentType,
+    }));
+    const result = await sendWithResend({
+      to,
+      subject,
+      html,
+      attachments: resendAttachments,
+    });
+    if (!result.success) {
+      console.error('❌ Erro ao enviar anexo via Resend:', result);
+    }
+    return result.success;
+  }
+
   try {
     const transporter = createTransporter();
     await transporter.sendMail({
