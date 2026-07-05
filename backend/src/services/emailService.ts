@@ -6,12 +6,12 @@ dotenv.config();
 const emailPort = parseInt(process.env.EMAIL_PORT || '587', 10);
 
 // Portas de fallback para tentar em caso de timeout
-const FALLBACK_PORTS = [
+// O cadastro aguarda este envio. Duas tentativas curtas impedem que a
+// requisição ultrapasse o timeout do aplicativo (antes eram até 4 x 30s).
+const FALLBACK_PORTS = Array.from(new Set([
   emailPort,
-  emailPort === 587 ? 465 : 587, // Se não for 587, tenta 587; caso contrário, tenta 465
-  2525, // Alternativa conhecida
-  25,   // Última opção
-];
+  emailPort === 465 ? 587 : 465,
+]));
 
 const createTransporter = (port = emailPort) => {
   const config: TransportOptions = {
@@ -22,9 +22,9 @@ const createTransporter = (port = emailPort) => {
       user: process.env.EMAIL_USER,
       pass: process.env.EMAIL_PASSWORD
     },
-    connectionTimeout: 30000, // Aumentado para 30s
-    greetingTimeout: 30000,
-    socketTimeout: 30000,
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 15000,
     keepAlive: false,
   } as any;
   

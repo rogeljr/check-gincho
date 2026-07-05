@@ -307,6 +307,8 @@ export default function HomeScreen() {
                 onPress={() => {
                   if (item.isLocal && item.local_id) {
                     router.push(`/sinistro/novo?local_id=${item.local_id}`);
+                  } else if (item.status === 'finalizado') {
+                    router.push(`/sinistro/${item.id}`);
                   } else {
                     router.push(`/sinistro/novo?edit_id=${item.id}`);
                   }

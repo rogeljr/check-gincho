@@ -38,6 +38,7 @@ export default function SinistroDetalheScreen() {
   const [sinistro, setSinistro] = useState<Sinistro | null>(null);
   const [loading, setLoading] = useState(true);
   const [enviandoWhatsApp, setEnviandoWhatsApp] = useState(false);
+  const [regenerandoPdf, setRegenerandoPdf] = useState(false);
 
   useEffect(() => {
     loadSinistro();
@@ -107,6 +108,29 @@ export default function SinistroDetalheScreen() {
       await Linking.openURL(sinistro.pdf_url);
     } catch (error) {
       Alert.alert('Erro', 'Não foi possível abrir o PDF');
+    }
+  };
+
+  const regenerarPDF = async () => {
+    if (!sinistro) return;
+
+    try {
+      setRegenerandoPdf(true);
+      const data = await apiService.post<{ pdf_url: string }>(
+        `sinistros/${sinistro.id}/regenerar-pdf`
+      );
+      setSinistro((atual) => atual ? { ...atual, pdf_url: data.pdf_url } : atual);
+      Alert.alert(
+        'PDF protegido atualizado',
+        'Cliente: abre com o CPF (somente números).\nEmpresa: abre com o CNPJ (somente números).'
+      );
+    } catch (error: any) {
+      Alert.alert(
+        'Erro ao proteger PDF',
+        error.response?.data?.error || 'Não foi possível regenerar o PDF.'
+      );
+    } finally {
+      setRegenerandoPdf(false);
     }
   };
 
@@ -207,7 +231,7 @@ export default function SinistroDetalheScreen() {
             <View
               style={[
                 styles.statusBadge,
-                sinistro.status === 'Finalizado'
+                sinistro.status === 'finalizado'
                   ? styles.statusFinalizado
                   : styles.statusRascunho,
               ]}
@@ -246,6 +270,14 @@ export default function SinistroDetalheScreen() {
         )}
 
         {/* Ações */}
+        {sinistro.status === 'finalizado' && (
+          <View style={styles.passwordInfo}>
+            <MaterialIcons name="lock" size={20} color="#155724" />
+            <Text style={styles.passwordInfoText}>
+              PDF protegido: CPF do cliente ou CNPJ da empresa, sempre somente números.
+            </Text>
+          </View>
+        )}
         <View style={styles.acoes}>
           {sinistro.pdf_url && (
             <TouchableOpacity style={styles.botaoAcao} onPress={abrirPDF}>
@@ -267,6 +299,23 @@ export default function SinistroDetalheScreen() {
               />
               <Text style={styles.botaoTexto}>
                 {enviandoWhatsApp ? 'Abrindo...' : 'Enviar WhatsApp'}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {sinistro.status === 'finalizado' && (
+            <TouchableOpacity
+              style={[styles.botaoAcao, styles.botaoProteger]}
+              onPress={regenerarPDF}
+              disabled={regenerandoPdf}
+            >
+              <MaterialIcons
+                name={regenerandoPdf ? 'hourglass-empty' : 'enhanced-encryption'}
+                size={20}
+                color="#FFF"
+              />
+              <Text style={styles.botaoTexto}>
+                {regenerandoPdf ? 'Protegendo...' : 'Regerar protegido'}
               </Text>
             </TouchableOpacity>
           )}
@@ -404,12 +453,14 @@ const styles = StyleSheet.create({
   },
   acoes: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 12,
     marginTop: 20,
     marginBottom: 20,
   },
   botaoAcao: {
-    flex: 1,
+    flexGrow: 1,
+    flexBasis: 140,
     flexDirection: 'row',
     backgroundColor: '#0066CC',
     borderRadius: 8,
@@ -421,6 +472,26 @@ const styles = StyleSheet.create({
   },
   botaoWhatsApp: {
     backgroundColor: '#25D366',
+  },
+  botaoProteger: {
+    backgroundColor: '#155724',
+  },
+  passwordInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 14,
+    borderRadius: 10,
+    backgroundColor: '#D4EDDA',
+    borderWidth: 1,
+    borderColor: '#B8DCC1',
+  },
+  passwordInfoText: {
+    flex: 1,
+    color: '#155724',
+    fontSize: 13,
+    lineHeight: 19,
+    fontWeight: '500',
   },
   botaoGerar: {
     backgroundColor: '#27AE60',

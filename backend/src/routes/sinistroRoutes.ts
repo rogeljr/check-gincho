@@ -24,6 +24,7 @@ router.delete('/:id/assinatura', sinistroController.apagarAssinatura);
 
 // Finalizar
 router.post('/:id/finalizar', sinistroController.finalizarSinistro);
+router.post('/:id/regenerar-pdf', sinistroController.regenerarPDFProtegido);
 
 // Enviar PDF para cliente
 router.post('/:id/enviar-pdf', sinistroController.enviarPDFParaCliente);

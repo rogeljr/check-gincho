@@ -26,6 +26,7 @@ export const ENDPOINTS = {
   REMOVER_FOTO: (id: number, fotoId: number) => `/sinistros/${id}/fotos/${fotoId}`,
   ADICIONAR_ASSINATURA: (id: number) => `/sinistros/${id}/assinatura`,
   FINALIZAR_SINISTRO: (id: number) => `/sinistros/${id}/finalizar`,
+  REGENERAR_PDF: (id: number) => `/sinistros/${id}/regenerar-pdf`,
   
   // Pagamentos
   CRIAR_PREFERENCIA: '/pagamentos/criar-preferencia',

@@ -101,7 +101,7 @@ export const generatePDF = async (
 ): Promise<Buffer> => {
   return new Promise(async (resolve, reject) => {
     try {
-      console.log('🔐 [PDF] Gerando PDF com senha:', senhaProtecao || 'SEM SENHA');
+      console.log('🔐 [PDF] Gerando PDF', { protegido: Boolean(senhaProtecao) });
       
       // Se houver senha, adicionar criptografia
       const docOptions: any = { size: 'A4', margin: 50, pdfVersion: '1.7' };
@@ -321,7 +321,10 @@ export const uploadPDF = async (pdfBuffer: Buffer, sinistroId: number): Promise<
       {
         folder: 'check-guincho/pdfs',
         resource_type: 'raw',
-        public_id: `sinistro_${sinistroId}_${Date.now()}.pdf`
+        public_id: `sinistro_${sinistroId}.pdf`,
+        overwrite: true,
+        invalidate: true,
+        unique_filename: false
       },
       (error, result) => {
         if (error) reject(error);

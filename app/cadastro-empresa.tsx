@@ -214,7 +214,10 @@ export default function CadastroEmpresaScreen() {
         ]
       );
     } catch (error: any) {
-      const errorMessage = error.response?.data?.error || error.message || 'Erro ao cadastrar empresa. Tente novamente.';
+      const semResposta = !error.response && (error.code === 'ERR_NETWORK' || error.code === 'ECONNABORTED');
+      const errorMessage = semResposta
+        ? 'O servidor não respondeu a tempo. Não envie o cadastro novamente agora: primeiro tente entrar e verifique seu email, pois a empresa pode ter sido criada.'
+        : error.response?.data?.error || error.message || 'Erro ao cadastrar empresa. Tente novamente.';
       Alert.alert('Erro', errorMessage);
     } finally {
       setLoading(false);

@@ -471,42 +471,14 @@ export default function NovoSinistroScreen() {
       databaseService.atualizarSinistro(localId, {
         assinatura_base64: signature,
         assinatura_timestamp: assinaturaTimestamp,
+        // expo-print não oferece criptografia. O PDF definitivo só é criado
+        // no servidor, após a sincronização, para nunca gerar uma cópia local
+        // desprotegida nova.
+        pdf_local_url: undefined,
       }).catch((error) => {
         console.warn('Erro ao salvar assinatura local:', error);
       });
-
-      gerarPdfLocal({
-        numero_sinistro: numeroSinistro || gerarNumeroSinistro(),
-        nome_cliente: formData.nome_cliente.trim(),
-        cpf_cliente: formData.cpf_cliente.replace(/\D/g, '') || undefined,
-        telefone_cliente: formData.telefone_cliente.replace(/\D/g, '') || undefined,
-        placa_veiculo: formData.placa_veiculo.toUpperCase().replace(/[^A-Z0-9]/g, ''),
-        tipo_atendimento: 'Guincho',
-        modelo_veiculo: formData.modelo_veiculo.trim() || undefined,
-        cor_veiculo: formData.cor_veiculo.trim() || undefined,
-        origem_latitude: origemCoords?.latitude,
-        origem_longitude: origemCoords?.longitude,
-        origem_endereco: formData.origem_endereco.trim() || undefined,
-        destino_latitude: destinoCoords?.latitude,
-        destino_longitude: destinoCoords?.longitude,
-        destino_endereco: formData.destino_endereco.trim() || undefined,
-        quilometragem: quilometragem || undefined,
-        observacoes: formData.observacoes.trim() || undefined,
-        pdf_local_url: undefined,
-        assinatura_timestamp: assinaturaTimestamp,
-        status: 'rascunho',
-        sincronizado: false,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }, localId, signature).then(async (uri) => {
-        setPdfLocalUrl(uri);
-        await databaseService.atualizarSinistro(localId, { 
-          pdf_local_url: uri,
-          assinatura_timestamp: assinaturaTimestamp
-        });
-      }).catch((error) => {
-        console.warn('Erro ao gerar PDF local após assinatura:', error);
-      });
+      setPdfLocalUrl(null);
     }
   };
   
@@ -1351,23 +1323,9 @@ export default function NovoSinistroScreen() {
         updatedAt: new Date().toISOString(),
       };
 
-      // ✅ PDF já foi gerado quando assinatura foi confirmada, não gerar novamente
-      if (assinaturaBase64 && !pdfLocalUrl) {
-        console.warn('⚠️ Assinatura existe mas PDF não foi gerado - gerando agora');
-        try {
-          const pdfLocalUri = await gerarPdfLocal(sinistroData, localId || undefined);
-          sinistroData = { ...sinistroData, pdf_local_url: pdfLocalUri };
-
-          if (localId) {
-            await databaseService.atualizarSinistro(localId, { pdf_local_url: pdfLocalUri });
-            setPdfLocalUrl(pdfLocalUri);
-          }
-        } catch (error) {
-          console.warn('Erro ao gerar PDF local:', error);
-        }
-      } else if (pdfLocalUrl) {
-        sinistroData = { ...sinistroData, pdf_local_url: pdfLocalUrl };
-      }
+      // O comprovante definitivo é gerado no backend com senha durante a
+      // sincronização. Não use expo-print aqui: ele não criptografa o arquivo.
+      sinistroData = { ...sinistroData, pdf_local_url: undefined };
 
       // 🔒 MODO OFFLINE-FIRST: SEMPRE salva localmente primeiro
       if (localId) {

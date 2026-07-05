@@ -59,6 +59,25 @@ class ApiService {
     console.error(`[ApiService] ${method} ${url} - Error`, details);
   }
 
+  private safeLogData(data: any): any {
+    if (!data || typeof data !== 'object') return data;
+
+    const sensitiveFields = new Set([
+      'senha',
+      'confirmarSenha',
+      'password',
+      'token',
+      'assinatura_base64',
+    ]);
+
+    return Object.fromEntries(
+      Object.entries(data).map(([key, value]) => [
+        key,
+        sensitiveFields.has(key) ? '[PROTEGIDO]' : value,
+      ])
+    );
+  }
+
   async get<T>(url: string, params?: any): Promise<T> {
     try {
       console.log(`[ApiService] GET ${url}`, { params });
@@ -73,7 +92,10 @@ class ApiService {
 
   async post<T>(url: string, data?: any): Promise<T> {
     try {
-      console.log(`[ApiService] POST ${url}`, { data, baseURL: this.api.defaults.baseURL });
+      console.log(`[ApiService] POST ${url}`, {
+        data: this.safeLogData(data),
+        baseURL: this.api.defaults.baseURL,
+      });
       const response = await this.api.post<T>(url, data);
       console.log(`[ApiService] POST ${url} - Success`, response.data);
       return response.data;
@@ -85,7 +107,7 @@ class ApiService {
 
   async put<T>(url: string, data?: any): Promise<T> {
     try {
-      console.log(`[ApiService] PUT ${url}`, { data });
+      console.log(`[ApiService] PUT ${url}`, { data: this.safeLogData(data) });
       const response = await this.api.put<T>(url, data);
       console.log(`[ApiService] PUT ${url} - Success`, response.data);
       return response.data;

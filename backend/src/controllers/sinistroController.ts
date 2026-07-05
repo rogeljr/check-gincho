@@ -4,7 +4,7 @@ import Foto from '../models/Foto';
 import Empresa from '../models/Empresa';
 import { createLog } from '../middleware/logger';
 import { uploadBase64Image, deleteImage } from '../services/uploadService';
-import { generatePDF, uploadPDF, generatePDFClienteComSenha, generatePDFPrestadorComSenha } from '../services/pdfService';
+import { uploadPDF, generatePDFClienteComSenha } from '../services/pdfService';
 import { sendEmailComAnexo, emailPDFSinistroCliente } from '../services/emailService';
 import { Op } from 'sequelize';
 
@@ -26,7 +26,11 @@ const gerarNumeroSinistro = (): string => {
 // Criar novo sinistro
 export const criarSinistro = async (req: Request, res: Response) => {
   try {
-    console.log('📝 [SINISTRO] Dados recebidos:', req.body);
+    // Não registrar CPF, telefone, assinatura ou demais dados pessoais.
+    console.log('📝 [SINISTRO] Nova solicitação recebida', {
+      empresa_id: req.empresaId,
+      possui_placa: Boolean(req.body.placa_veiculo)
+    });
     
     const {
       placa_veiculo,
@@ -122,8 +126,8 @@ export const listarSinistros = async (req: Request, res: Response) => {
         }
       ],
       order: [['createdAt', 'DESC']],
-      limit: parseInt(limit as string),
-      offset: parseInt(offset as string)
+      limit: Math.min(Math.max(parseInt(limit as string) || 50, 1), 100),
+      offset: Math.max(parseInt(offset as string) || 0, 0)
     });
     
     return res.json(sinistros);
@@ -607,6 +611,58 @@ export const finalizarSinistro = async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Erro ao finalizar sinistro:', error);
     return res.status(500).json({ error: 'Erro ao finalizar sinistro' });
+  }
+};
+
+// Recriar o arquivo protegido, inclusive para sinistros gerados antes da
+// adoção da senha por CPF/CNPJ. A rota é autenticada e limitada à empresa.
+export const regenerarPDFProtegido = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const sinistro = await Sinistro.findOne({
+      where: { id, empresa_id: req.empresaId, status: 'finalizado' },
+      include: [{ model: Foto, as: 'fotos' }]
+    });
+
+    if (!sinistro) {
+      return res.status(404).json({ error: 'Sinistro finalizado não encontrado' });
+    }
+
+    const empresa = await Empresa.findByPk(req.empresaId!);
+    if (!empresa) {
+      return res.status(500).json({ error: 'Empresa não encontrada' });
+    }
+
+    const pdfBuffer = await generatePDFClienteComSenha({
+      sinistro,
+      empresa,
+      fotos: (sinistro as any).fotos || []
+    });
+    const pdfUrl = await uploadPDF(pdfBuffer, sinistro.id);
+
+    sinistro.pdf_url = pdfUrl;
+    await sinistro.save();
+
+    await createLog(req, {
+      acao: 'regenerar_pdf_protegido',
+      entidade: 'sinistro',
+      entidade_id: sinistro.id
+    });
+
+    return res.json({
+      message: 'PDF protegido regenerado com sucesso',
+      pdf_url: pdfUrl,
+      protecao: {
+        cliente: 'CPF (somente números)',
+        empresa: 'CNPJ (somente números)'
+      }
+    });
+  } catch (error) {
+    console.error('Erro ao regenerar PDF protegido:', error);
+    return res.status(500).json({
+      error: 'Não foi possível regenerar o PDF protegido',
+      details: (error as any).message
+    });
   }
 };
 
